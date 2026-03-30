@@ -1,0 +1,2785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>HueNova — AI Color Palette Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Cabinet+Grotesk:wght@300;400;500;700;800;900&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+<style>
+:root {
+  --bg: #050505;
+  --surface: #0e0e0e;
+  --border: rgba(255,255,255,0.07);
+  --text: #f0ece4;
+  --muted: rgba(240,236,228,0.4);
+  --accent1: #ff5c3a;
+  --accent2: #c97bff;
+  --accent3: #3affd4;
+  --accent4: #ffd93d;
+  --accent5: #ff3a8c;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Cabinet Grotesk', sans-serif;
+  overflow-x: hidden;
+  cursor: none;
+}
+
+/* CUSTOM CURSOR */
+#cursor {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--text);
+  position: fixed;
+  top: 0; left: 0;
+  pointer-events: none;
+  z-index: 10000;
+  mix-blend-mode: difference;
+  transition: transform 0.15s ease, width 0.3s ease, height 0.3s ease;
+}
+#cursor-follower {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.3);
+  position: fixed;
+  top: 0; left: 0;
+  pointer-events: none;
+  z-index: 9999;
+  transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1), width 0.4s, height 0.4s, background 0.4s;
+}
+body:has(a:hover) #cursor, body:has(button:hover) #cursor { transform: scale(3); }
+body:has(a:hover) #cursor-follower, body:has(button:hover) #cursor-follower { width: 60px; height: 60px; background: rgba(255,255,255,0.05); }
+
+/* ── MODAL: restore native cursor inside the modal ── */
+#hn-modal-overlay,
+#hn-modal-overlay * { cursor: auto !important; }
+#hn-modal-overlay button,
+#hn-modal-overlay .modal-close,
+#hn-modal-overlay .modal-generate-btn,
+#hn-modal-overlay .modal-chip,
+#hn-modal-overlay .modal-export-btn,
+#hn-modal-overlay .modal-result-swatch,
+#hn-modal-overlay .modal-result-gradient { cursor: pointer !important; }
+#hn-modal-overlay input { cursor: text !important; }
+
+/* PROGRESS BAR */
+#progress-bar {
+  position: fixed;
+  top: 0; left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent1), var(--accent2), var(--accent3));
+  z-index: 9998;
+  width: 0%;
+  transition: width 0.1s linear;
+}
+
+/* GRAIN OVERLAY */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9997;
+  opacity: 0.4;
+}
+
+/* SCROLL HINT */
+.scroll-hint {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  color: var(--muted);
+  text-transform: uppercase;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+.scroll-line {
+  width: 1px;
+  height: 40px;
+  background: linear-gradient(to bottom, var(--muted), transparent);
+  animation: scrollPulse 2s ease-in-out infinite;
+}
+@keyframes scrollPulse {
+  0%, 100% { opacity: 0.3; transform: scaleY(1); }
+  50% { opacity: 1; transform: scaleY(0.6) translateY(20px); }
+}
+
+/* ===================== HERO ===================== */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  padding: 2rem;
+}
+
+/* Mesh background */
+.hero-mesh {
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse 60% 50% at 20% 30%, rgba(255,92,58,0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 60% at 80% 20%, rgba(201,123,255,0.1) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 40% at 50% 80%, rgba(58,255,212,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 50% at 70% 60%, rgba(255,217,61,0.06) 0%, transparent 50%);
+  animation: meshShift 12s ease-in-out infinite alternate;
+}
+@keyframes meshShift {
+  0% { opacity: 0.6; transform: scale(1); }
+  100% { opacity: 1; transform: scale(1.05) rotate(1deg); }
+}
+
+/* Floating blobs */
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  animation: blobFloat 8s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+.blob-1 { width: 500px; height: 500px; background: radial-gradient(circle, rgba(255,92,58,0.2), transparent); top: -10%; left: -10%; animation-delay: 0s; }
+.blob-2 { width: 400px; height: 400px; background: radial-gradient(circle, rgba(201,123,255,0.18), transparent); top: 20%; right: -5%; animation-delay: -2s; }
+.blob-3 { width: 350px; height: 350px; background: radial-gradient(circle, rgba(58,255,212,0.15), transparent); bottom: -5%; left: 30%; animation-delay: -4s; }
+.blob-4 { width: 250px; height: 250px; background: radial-gradient(circle, rgba(255,60,140,0.12), transparent); bottom: 20%; right: 20%; animation-delay: -6s; }
+
+@keyframes blobFloat {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(30px, -40px) scale(1.1); }
+}
+
+/* 3D Color Orbs */
+.orbs-container {
+  position: absolute;
+  inset: 0;
+  perspective: 800px;
+}
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  animation: orbFloat 10s ease-in-out infinite;
+  box-shadow: inset -20px -20px 40px rgba(0,0,0,0.4), inset 10px 10px 30px rgba(255,255,255,0.15);
+}
+.orb-1 { width: 80px; height: 80px; background: radial-gradient(circle at 35% 35%, #ff8c6a, #ff3a1a, #8b1a00); top: 15%; left: 15%; animation-duration: 7s; animation-delay: 0s; }
+.orb-2 { width: 55px; height: 55px; background: radial-gradient(circle at 35% 35%, #e0a8ff, #9b3fff, #4a0080); top: 25%; right: 20%; animation-duration: 9s; animation-delay: -2s; }
+.orb-3 { width: 40px; height: 40px; background: radial-gradient(circle at 35% 35%, #a8fff1, #00d4b4, #005a4d); bottom: 30%; left: 25%; animation-duration: 8s; animation-delay: -4s; }
+.orb-4 { width: 65px; height: 65px; background: radial-gradient(circle at 35% 35%, #ffe98a, #ffc200, #7a5c00); bottom: 20%; right: 15%; animation-duration: 11s; animation-delay: -1s; }
+.orb-5 { width: 35px; height: 35px; background: radial-gradient(circle at 35% 35%, #ff8dc0, #ff1a7a, #7a003a); top: 50%; left: 10%; animation-duration: 6s; animation-delay: -3s; }
+.orb-6 { width: 90px; height: 90px; background: radial-gradient(circle at 35% 35%, #8affee, #00c2a8, #003d35); top: 10%; right: 35%; animation-duration: 13s; animation-delay: -5s; }
+
+@keyframes orbFloat {
+  0%, 100% { transform: translateY(0) translateX(0) rotateX(0deg) rotateY(0deg); }
+  25% { transform: translateY(-20px) translateX(10px) rotateX(5deg) rotateY(3deg); }
+  50% { transform: translateY(-10px) translateX(-15px) rotateX(-3deg) rotateY(8deg); }
+  75% { transform: translateY(-30px) translateX(5px) rotateX(7deg) rotateY(-4deg); }
+}
+
+.hero-badge {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--accent3);
+  border: 1px solid rgba(58,255,212,0.3);
+  padding: 0.4rem 1rem;
+  border-radius: 100px;
+  margin-bottom: 2.5rem;
+  opacity: 0;
+  background: rgba(58,255,212,0.05);
+}
+
+.hero-title {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(3.5rem, 10vw, 9rem);
+  font-weight: 900;
+  line-height: 1.05;
+  text-align: center;
+  letter-spacing: -0.03em;
+  opacity: 0;
+  position: relative;
+  z-index: 2;
+  padding-bottom: 0.15em;
+}
+.hero-title .line { display: block; overflow: visible; }
+.hero-title .word { display: inline-block; }
+
+.title-gradient {
+  background: linear-gradient(135deg, #ff5c3a 0%, #ff3a8c 30%, #c97bff 60%, #3affd4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-sub {
+  margin-top: 2rem;
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  color: var(--muted);
+  text-align: center;
+  max-width: 520px;
+  line-height: 1.7;
+  font-weight: 300;
+  opacity: 0;
+  z-index: 2;
+  position: relative;
+}
+
+.hero-cta {
+  margin-top: 3rem;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  opacity: 0;
+  z-index: 2;
+  position: relative;
+}
+
+.btn-primary {
+  background: var(--text);
+  color: var(--bg);
+  border: none;
+  padding: 0.9rem 2.2rem;
+  font-family: 'Cabinet Grotesk', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-radius: 100px;
+  cursor: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--accent1), var(--accent2));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 20px 60px rgba(255,92,58,0.3); }
+.btn-primary:hover::before { opacity: 1; }
+.btn-primary span { position: relative; z-index: 1; }
+.btn-primary:hover span { color: white; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 0.9rem 2.2rem;
+  font-family: 'Cabinet Grotesk', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-radius: 100px;
+  cursor: none;
+  transition: border-color 0.3s ease, background 0.3s ease;
+}
+.btn-ghost:hover { border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); }
+
+/* ===================== SPECTRUM SECTION ===================== */
+.spectrum-section {
+  height: 250vh;
+  position: relative;
+}
+.spectrum-sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.spectrum-bars {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  display: flex;
+  gap: 0;
+  transform-origin: bottom;
+}
+.s-bar {
+  flex: 1;
+  transform-origin: bottom;
+  transform: scaleY(0);
+  transition: none;
+  position: relative;
+  overflow: hidden;
+}
+.s-bar::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 40%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.08), transparent);
+}
+
+.spectrum-label {
+  position: relative;
+  z-index: 10;
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(2rem, 6vw, 5rem);
+  font-weight: 700;
+  text-align: center;
+  opacity: 0;
+  margin-bottom: 1rem;
+}
+.spectrum-sub {
+  position: relative;
+  z-index: 10;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  color: var(--muted);
+  text-transform: uppercase;
+  opacity: 0;
+}
+
+/* ===================== FEATURES ===================== */
+.features-section {
+  padding: 10rem 2rem;
+  max-width: 1300px;
+  margin: 0 auto;
+  position: relative;
+}
+.section-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--accent2);
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.section-label::before {
+  content: '';
+  display: inline-block;
+  width: 30px;
+  height: 1px;
+  background: var(--accent2);
+}
+.section-title {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(2rem, 5vw, 4rem);
+  font-weight: 700;
+  line-height: 1.1;
+  margin-bottom: 1.5rem;
+}
+.section-desc {
+  color: var(--muted);
+  font-size: 1.1rem;
+  max-width: 500px;
+  line-height: 1.8;
+  font-weight: 300;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5px;
+  margin-top: 5rem;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+.feature-card {
+  background: var(--bg);
+  padding: 3rem;
+  position: relative;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(40px);
+  transition: background 0.4s ease;
+  cursor: none;
+}
+.feature-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 100%, var(--card-glow, rgba(255,92,58,0.08)), transparent);
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.feature-card:hover::before { opacity: 1; }
+.feature-card:hover { background: #0f0f0f; }
+
+.feature-card:nth-child(1) { --card-glow: rgba(255,92,58,0.12); }
+.feature-card:nth-child(2) { --card-glow: rgba(201,123,255,0.12); }
+.feature-card:nth-child(3) { --card-glow: rgba(58,255,212,0.10); }
+.feature-card:nth-child(4) { --card-glow: rgba(255,60,140,0.10); }
+
+.feature-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2rem;
+  font-size: 1.4rem;
+  position: relative;
+}
+.f-icon-1 { background: rgba(255,92,58,0.15); border: 1px solid rgba(255,92,58,0.25); }
+.f-icon-2 { background: rgba(201,123,255,0.12); border: 1px solid rgba(201,123,255,0.2); }
+.f-icon-3 { background: rgba(58,255,212,0.10); border: 1px solid rgba(58,255,212,0.2); }
+.f-icon-4 { background: rgba(255,60,140,0.10); border: 1px solid rgba(255,60,140,0.18); }
+
+.feature-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  color: var(--muted);
+  margin-bottom: 0.8rem;
+}
+.feature-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+.feature-desc {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.8;
+  font-weight: 300;
+}
+
+/* Mini palette preview in card */
+.mini-palette {
+  display: flex;
+  gap: 6px;
+  margin-top: 2rem;
+}
+.mini-swatch {
+  height: 28px;
+  border-radius: 6px;
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+.mini-swatch::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 50%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.1), transparent);
+  border-radius: inherit;
+}
+
+/* ===================== PALETTE DEMO ===================== */
+.palette-section {
+  padding: 10rem 2rem;
+  background: var(--surface);
+  position: relative;
+  overflow: hidden;
+}
+.palette-section-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6rem;
+  align-items: center;
+}
+.palette-info { position: relative; z-index: 2; }
+
+.palette-demo {
+  position: relative;
+  z-index: 2;
+}
+
+.palette-theme-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+.theme-tab {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  padding: 0.4rem 0.9rem;
+  border-radius: 100px;
+  cursor: none;
+  transition: all 0.3s ease;
+}
+.theme-tab.active, .theme-tab:hover {
+  border-color: rgba(255,255,255,0.3);
+  color: var(--text);
+  background: rgba(255,255,255,0.05);
+}
+
+.palette-swatches {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 1.5rem;
+}
+.palette-swatch {
+  aspect-ratio: 1;
+  border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+  cursor: none;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.palette-swatch:hover { transform: scale(1.05) translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
+.palette-swatch::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 40%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.15), transparent);
+  border-radius: inherit;
+}
+.swatch-hex {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 0.5rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.55rem;
+  color: rgba(255,255,255,0.7);
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(6px);
+  text-align: center;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: all 0.2s ease;
+}
+.palette-swatch:hover .swatch-hex { opacity: 1; transform: translateY(0); }
+
+.palette-meta {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+.palette-type-badge {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.8rem;
+  border-radius: 100px;
+  background: rgba(58,255,212,0.1);
+  border: 1px solid rgba(58,255,212,0.2);
+  color: var(--accent3);
+}
+
+.regen-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'Cabinet Grotesk', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  border: 1px solid var(--border);
+  background: transparent;
+  padding: 0.4rem 1rem;
+  border-radius: 100px;
+  cursor: none;
+  transition: all 0.3s ease;
+  margin-left: auto;
+}
+.regen-btn:hover { border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); }
+.regen-icon { animation: spin 2s linear infinite paused; }
+.regen-btn:hover .regen-icon { animation-play-state: running; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* Gradient swatch row */
+.gradient-row {
+  margin-top: 1.5rem;
+  height: 60px;
+  border-radius: 14px;
+  position: relative;
+  overflow: hidden;
+  cursor: none;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.gradient-row:hover { transform: translateY(-2px); box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+.gradient-row::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 50%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.08), transparent);
+}
+
+/* ===================== SHOWCASE ===================== */
+.showcase-section {
+  padding: 10rem 2rem;
+  max-width: 1300px;
+  margin: 0 auto;
+}
+.showcase-flow {
+  margin-top: 5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--border);
+}
+.showcase-row {
+  background: var(--bg);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 300px;
+  opacity: 0;
+  transform: translateX(-30px);
+}
+.showcase-row:nth-child(even) { transform: translateX(30px); }
+.showcase-visual {
+  position: relative;
+  overflow: hidden;
+  min-height: 280px;
+}
+.showcase-content {
+  padding: 3.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.showcase-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--accent1);
+  margin-bottom: 1.2rem;
+}
+.showcase-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+}
+.showcase-text {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.8;
+  font-weight: 300;
+}
+
+/* Visual demos inside showcase */
+.visual-demo-ai {
+  background: #080808;
+  padding: 2rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  justify-content: center;
+}
+.ai-prompt-box {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 1rem 1.2rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  line-height: 1.6;
+  position: relative;
+}
+.ai-prompt-box::before { content: '> '; color: var(--accent3); }
+.ai-cursor { display: inline-block; width: 6px; height: 12px; background: var(--accent3); margin-left: 2px; animation: blink 1s infinite; vertical-align: text-bottom; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+.ai-palette-result {
+  display: flex;
+  height: 40px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.ai-swatch { flex: 1; }
+
+.visual-demo-gradient {
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+.grad-strip {
+  position: absolute;
+  height: 100%;
+  animation: gradShift 6s ease-in-out infinite alternate;
+}
+@keyframes gradShift { 0% { filter: hue-rotate(0deg); } 100% { filter: hue-rotate(30deg); } }
+
+.visual-demo-themes {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.theme-half {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.theme-label-sm {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.5;
+}
+.theme-ui-mock { border-radius: 8px; height: 8px; }
+
+.visual-demo-export {
+  background: #080808;
+  height: 100%;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  justify-content: center;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+.code-line { display: flex; gap: 0.5rem; align-items: center; line-height: 1.8; }
+.code-key { color: var(--accent2); }
+.code-val { color: var(--accent3); }
+.code-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+
+/* ===================== CTA ===================== */
+.cta-section {
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  padding: 6rem 2rem;
+}
+.cta-bg {
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse 80% 60% at 50% 50%, rgba(201,123,255,0.08) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 30% 70%, rgba(255,92,58,0.06) 0%, transparent 50%),
+    radial-gradient(ellipse 40% 50% at 70% 30%, rgba(58,255,212,0.05) 0%, transparent 50%);
+}
+.cta-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  max-width: 700px;
+}
+.cta-headline {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(2.5rem, 7vw, 6rem);
+  font-weight: 900;
+  line-height: 1;
+  margin-bottom: 1.5rem;
+  opacity: 0;
+}
+.cta-sub {
+  color: var(--muted);
+  font-size: 1.1rem;
+  margin-bottom: 3rem;
+  line-height: 1.7;
+  font-weight: 300;
+  opacity: 0;
+}
+.cta-actions {
+  opacity: 0;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ===================== FOOTER ===================== */
+footer {
+  padding: 3rem 2rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: gap;
+  gap: 1.5rem;
+}
+.footer-logo {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+.footer-logo span {
+  background: linear-gradient(135deg, var(--accent1), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.footer-links {
+  display: flex;
+  gap: 2rem;
+}
+.footer-links a {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.3s ease;
+  cursor: none;
+}
+.footer-links a:hover { color: var(--text); }
+.footer-copy {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+/* ===================== STATS SECTION ===================== */
+.stats-section {
+  padding: 6rem 2rem;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  background: var(--border);
+}
+.stat-item {
+  background: var(--bg);
+  padding: 3rem 2rem;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(20px);
+}
+.stat-num {
+  font-family: 'Playfair Display', serif;
+  font-size: 3rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, var(--text) 0%, var(--muted) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.stat-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 0.5rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .features-grid, .palette-section-inner, .showcase-row { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .hero-title { font-size: clamp(3rem, 12vw, 5rem); }
+  .footer-links { display: none; }
+  .showcase-row { transform: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- Custom cursor -->
+<div id="cursor"></div>
+<div id="cursor-follower"></div>
+<div id="progress-bar"></div>
+
+<!-- Scroll hint -->
+<div class="scroll-hint" id="scrollHint">
+  scroll
+  <div class="scroll-line"></div>
+</div>
+
+<!-- ===== HERO ===== -->
+<section class="hero" id="hero">
+  <div class="hero-mesh"></div>
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+  <div class="blob blob-4"></div>
+  <div class="orbs-container">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="orb orb-4"></div>
+    <div class="orb orb-5"></div>
+    <div class="orb orb-6"></div>
+  </div>
+
+  <div class="hero-badge" id="heroBadge">Intelligent Prompt-Based Palette Generator</div>
+
+  <h1 class="hero-title" id="heroTitle">
+    <span class="line"><span class="word">Color that</span></span>
+    <span class="line"><span class="word title-gradient">thinks</span>&nbsp;<span class="word">with</span></span>
+    <span class="line"><span class="word">you.</span></span>
+  </h1>
+
+  <p class="hero-sub" id="heroSub">
+    HueNova generates professional color palettes from simple prompts — tailored for designers and developers who want beautiful results, instantly.
+  </p>
+
+  <div class="hero-cta" id="heroCta">
+    <button class="btn-primary"><span>Try HueNova Free</span></button>
+    <button class="btn-ghost">Watch Demo</button>
+  </div>
+</section>
+
+<!-- ===== SPECTRUM ===== -->
+<div class="spectrum-section" id="spectrumSection">
+  <div class="spectrum-sticky">
+    <p class="spectrum-sub" id="specLabel2">Full Spectrum Generation</p>
+    <h2 class="spectrum-label" id="specLabel">Every hue, yours.</h2>
+    <div class="spectrum-bars" id="spectrumBars">
+      <!-- Generated by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- ===== STATS ===== -->
+<div class="stats-section">
+  <div class="stats-grid">
+    <div class="stat-item">
+      <div class="stat-num">10K+</div>
+      <div class="stat-label">Palettes Generated</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">98%</div>
+      <div class="stat-label">Accessibility Score</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">5s</div>
+      <div class="stat-label">Average Gen Time</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">∞</div>
+      <div class="stat-label">Palette Variations</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== FEATURES ===== -->
+<section class="features-section">
+  <p class="section-label">What We Do</p>
+  <h2 class="section-title">Everything color.<br/>Nothing else.</h2>
+  <p class="section-desc">Four powerful tools, one seamless experience designed for creatives who want results without the color theory degree.</p>
+
+  <div class="features-grid" id="featuresGrid">
+    <div class="feature-card" style="--card-glow: rgba(255,92,58,0.12)">
+      <div class="feature-num">01</div>
+      <div class="feature-icon f-icon-1">🎨</div>
+      <h3 class="feature-title">Theme-Based Generation</h3>
+      <p class="feature-desc">Describe your vision in plain language. "Calm ocean morning" or "Bold startup energy" — HueNova translates concepts into precise color palettes.</p>
+      <div class="mini-palette">
+        <div class="mini-swatch" style="background: #1a5276;"></div>
+        <div class="mini-swatch" style="background: #2e86c1;"></div>
+        <div class="mini-swatch" style="background: #7fb3d3;"></div>
+        <div class="mini-swatch" style="background: #aed6f1;"></div>
+        <div class="mini-swatch" style="background: #d6eaf8;"></div>
+      </div>
+    </div>
+
+    <div class="feature-card" style="--card-glow: rgba(201,123,255,0.12)">
+      <div class="feature-num">02</div>
+      <div class="feature-icon f-icon-2">🌅</div>
+      <h3 class="feature-title">Gradient Generator</h3>
+      <p class="feature-desc">Generate smooth, multi-stop gradients from any palette. Export as CSS, SVG, or PNG — ready to drop straight into your project.</p>
+      <div class="mini-palette">
+        <div class="mini-swatch" style="background: linear-gradient(135deg, #c97bff, #ff3a8c); flex: 3;"></div>
+        <div class="mini-swatch" style="background: linear-gradient(135deg, #ff3a8c, #ff5c3a); flex: 3;"></div>
+        <div class="mini-swatch" style="background: linear-gradient(135deg, #ff5c3a, #ffd93d); flex: 3;"></div>
+      </div>
+    </div>
+
+    <div class="feature-card" style="--card-glow: rgba(58,255,212,0.10)">
+      <div class="feature-num">03</div>
+      <div class="feature-icon f-icon-3">☀️</div>
+      <h3 class="feature-title">Light & Dark Themes</h3>
+      <p class="feature-desc">Every palette comes with a matched light and dark mode variation. WCAG contrast checked, developer-ready variables included.</p>
+      <div class="mini-palette">
+        <div class="mini-swatch" style="background: #f8f9fa;"></div>
+        <div class="mini-swatch" style="background: #e9ecef;"></div>
+        <div class="mini-swatch" style="background: #212529; border: 1px solid rgba(255,255,255,0.1);"></div>
+        <div class="mini-swatch" style="background: #343a40;"></div>
+        <div class="mini-swatch" style="background: #495057;"></div>
+      </div>
+    </div>
+
+    <div class="feature-card" style="--card-glow: rgba(255,60,140,0.10)">
+      <div class="feature-num">04</div>
+      <div class="feature-icon f-icon-4">🔄</div>
+      <h3 class="feature-title">Palette Regeneration</h3>
+      <p class="feature-desc">Lock colors you love, regenerate the rest. Tweak until it's perfect — HueNova preserves your context and evolves the palette intelligently.</p>
+      <div class="mini-palette">
+        <div class="mini-swatch" style="background: #ff5c3a; position: relative; outline: 2px solid rgba(255,92,58,0.6); outline-offset: 2px;"></div>
+        <div class="mini-swatch" style="background: #e8452a;"></div>
+        <div class="mini-swatch" style="background: #d4390f;"></div>
+        <div class="mini-swatch" style="background: #ff8c6a;"></div>
+        <div class="mini-swatch" style="background: #ffc4b0;"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== PALETTE DEMO ===== -->
+<section class="palette-section">
+  <div class="palette-section-inner">
+    <div class="palette-info">
+      <p class="section-label">Live Preview</p>
+      <h2 class="section-title">See color<br/><em>come alive.</em></h2>
+      <p class="section-desc" style="margin-top: 1rem;">Every generated palette is immediately interactive. Hover, copy hex codes, and export in seconds. What you see is what ships.</p>
+
+      <div style="margin-top: 3rem; display: flex; flex-direction: column; gap: 1rem;">
+        <div style="display: flex; align-items: center; gap: 1rem; font-size: 0.85rem; color: var(--muted);">
+          <div style="width: 20px; height: 20px; border-radius: 50%; background: rgba(58,255,212,0.15); border: 1px solid rgba(58,255,212,0.3); flex-shrink: 0;"></div>
+          Hover any swatch to reveal its hex code
+        </div>
+        <div style="display: flex; align-items: center; gap: 1rem; font-size: 0.85rem; color: var(--muted);">
+          <div style="width: 20px; height: 20px; border-radius: 50%; background: rgba(201,123,255,0.15); border: 1px solid rgba(201,123,255,0.3); flex-shrink: 0;"></div>
+          Switch themes with a single click
+        </div>
+        <div style="display: flex; align-items: center; gap: 1rem; font-size: 0.85rem; color: var(--muted);">
+          <div style="width: 20px; height: 20px; border-radius: 50%; background: rgba(255,92,58,0.15); border: 1px solid rgba(255,92,58,0.3); flex-shrink: 0;"></div>
+          Export as CSS variables, Tailwind config, or JSON
+        </div>
+      </div>
+    </div>
+
+    <div class="palette-demo" id="paletteDemo">
+      <div class="palette-theme-tabs">
+        <button class="theme-tab active">Ocean</button>
+        <button class="theme-tab">Forest</button>
+        <button class="theme-tab">Sunset</button>
+        <button class="theme-tab">Mono</button>
+      </div>
+
+      <div class="palette-swatches" id="paletteSwatches">
+        <!-- Generated by JS -->
+      </div>
+
+      <div class="gradient-row" id="gradientRow"></div>
+
+      <div class="palette-meta" style="margin-top: 1rem;">
+        <span class="palette-type-badge" id="paletteType">Analogous</span>
+        <button class="regen-btn" >
+          <svg class="regen-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>
+          </svg>
+          Regenerate
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SHOWCASE ===== -->
+<section class="showcase-section">
+  <p class="section-label">How It Works</p>
+  <h2 class="section-title">Built for the<br/>way you create.</h2>
+
+  <div class="showcase-flow">
+    <!-- Row 1: AI Generation -->
+    <div class="showcase-row" id="sr1">
+      <div class="showcase-visual">
+        <div class="visual-demo-ai">
+          <div class="ai-prompt-box">Generate a palette for a luxury skincare brand with warm, earthy tones<div class="ai-cursor"></div></div>
+          <div style="font-family: 'DM Mono', monospace; font-size: 0.6rem; color: rgba(58,255,212,0.7); padding: 0.3rem 0;">✓ Analyzing brand context... generating 5-color palette</div>
+          <div class="ai-palette-result">
+            <div class="ai-swatch" style="background: #2c1810;"></div>
+            <div class="ai-swatch" style="background: #8b5e3c;"></div>
+            <div class="ai-swatch" style="background: #c8956c;"></div>
+            <div class="ai-swatch" style="background: #e8c9a8;"></div>
+            <div class="ai-swatch" style="background: #f5ede3;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="showcase-content">
+        <p class="showcase-tag">01 — Prompt to Palette</p>
+        <h3 class="showcase-title">Describe it. Get it instantly.</h3>
+        <p class="showcase-text">No design experience needed. Just describe the feeling, brand, or mood you're going for. HueNova's AI parses your intent and produces a palette that actually matches.</p>
+      </div>
+    </div>
+
+    <!-- Row 2: Gradients (visual right) -->
+    <div class="showcase-row" id="sr2" style="direction: rtl;">
+      <div class="showcase-visual" style="direction: ltr;">
+        <div class="visual-demo-gradient">
+          <div class="grad-strip" style="width: 100%; background: linear-gradient(135deg, #0f0c29, #302b63, #24243e, #c97bff, #ff5c3a, #ffd93d);"></div>
+          <div style="position: absolute; inset: 0; background: linear-gradient(to right, rgba(8,8,8,0.3), transparent, rgba(8,8,8,0.3));"></div>
+        </div>
+      </div>
+      <div class="showcase-content" style="direction: ltr;">
+        <p class="showcase-tag" style="color: var(--accent2);">02 — Gradient Engine</p>
+        <h3 class="showcase-title">Beautiful gradients, automatically.</h3>
+        <p class="showcase-text">From your palette, HueNova crafts harmonious multi-stop gradients. Smooth transitions, no clashing, perfect for backgrounds, buttons, and UI elements.</p>
+      </div>
+    </div>
+
+    <!-- Row 3: Light/Dark -->
+    <div class="showcase-row" id="sr3">
+      <div class="showcase-visual">
+        <div class="visual-demo-themes">
+          <div class="theme-half" style="background: #f8f9fa; color: #212529;">
+            <div class="theme-label-sm" style="color: #666;">Light Mode</div>
+            <div class="theme-ui-mock" style="background: #212529; width: 80%;"></div>
+            <div class="theme-ui-mock" style="background: #495057; width: 60%;"></div>
+            <div style="display: flex; gap: 6px; margin-top: 4px;">
+              <div style="height: 28px; width: 70px; border-radius: 6px; background: #1a6bff;"></div>
+              <div style="height: 28px; width: 50px; border-radius: 6px; background: #e9ecef;"></div>
+            </div>
+            <div class="theme-ui-mock" style="background: #dee2e6; width: 90%;"></div>
+          </div>
+          <div class="theme-half" style="background: #0d1117; color: #c9d1d9;">
+            <div class="theme-label-sm" style="color: #555;">Dark Mode</div>
+            <div class="theme-ui-mock" style="background: #c9d1d9; width: 80%;"></div>
+            <div class="theme-ui-mock" style="background: #8b949e; width: 60%;"></div>
+            <div style="display: flex; gap: 6px; margin-top: 4px;">
+              <div style="height: 28px; width: 70px; border-radius: 6px; background: #388bfd;"></div>
+              <div style="height: 28px; width: 50px; border-radius: 6px; background: #21262d;"></div>
+            </div>
+            <div class="theme-ui-mock" style="background: #21262d; width: 90%;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="showcase-content">
+        <p class="showcase-tag" style="color: var(--accent3);">03 — Theme Variants</p>
+        <h3 class="showcase-title">Light. Dark. Both, perfectly.</h3>
+        <p class="showcase-text">Every palette ships with a WCAG-tested light and dark variant. CSS variables, Tailwind tokens, and design tokens exported and ready.</p>
+      </div>
+    </div>
+
+    <!-- Row 4: Export (visual right) -->
+    <div class="showcase-row" id="sr4" style="direction: rtl;">
+      <div class="showcase-visual" style="direction: ltr;">
+        <div class="visual-demo-export">
+          <div class="code-line"><div class="code-dot" style="background:#ff5c3a;"></div><span class="code-key">--color-primary:</span>&nbsp;<span class="code-val">#ff5c3a</span><span style="color:#666;">;</span></div>
+          <div class="code-line"><div class="code-dot" style="background:#c97bff;"></div><span class="code-key">--color-secondary:</span>&nbsp;<span class="code-val">#c97bff</span><span style="color:#666;">;</span></div>
+          <div class="code-line"><div class="code-dot" style="background:#3affd4;"></div><span class="code-key">--color-accent:</span>&nbsp;<span class="code-val">#3affd4</span><span style="color:#666;">;</span></div>
+          <div class="code-line"><div class="code-dot" style="background:#ffd93d;"></div><span class="code-key">--color-warn:</span>&nbsp;<span class="code-val">#ffd93d</span><span style="color:#666;">;</span></div>
+          <div class="code-line"><div class="code-dot" style="background:#f0ece4;"></div><span class="code-key">--color-bg:</span>&nbsp;<span class="code-val">#f0ece4</span><span style="color:#666;">;</span></div>
+          <div style="height: 1px; background: rgba(255,255,255,0.06); margin: 0.5rem 0;"></div>
+          <div style="color: rgba(58,255,212,0.6); font-size: 0.6rem;">✓ Copied to clipboard</div>
+        </div>
+      </div>
+      <div class="showcase-content" style="direction: ltr;">
+        <p class="showcase-tag" style="color: var(--accent4);">04 — Export</p>
+        <h3 class="showcase-title">Copy and ship. That's it.</h3>
+        <p class="showcase-text">Export as CSS variables, Tailwind config, SCSS, JSON, or Figma tokens. One click and your palette is in your project — no friction, no conversions.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== CTA ===== -->
+<section class="cta-section">
+  <div class="cta-bg"></div>
+  <div class="cta-content">
+    <h2 class="cta-headline" id="ctaHead">Start with<br/><span class="title-gradient">one prompt.</span></h2>
+    <p class="cta-sub" id="ctaSub">No credit card. No account. Just type what you're building and get a palette that actually works. It takes five seconds.</p>
+    <div class="cta-actions" id="ctaActions">
+      <button class="btn-primary"><span>Generate Your First Palette</span></button>
+      <button class="btn-ghost">See Examples</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer>
+  <div class="footer-logo">Hue<span>Nova</span></div>
+  <div class="footer-copy">© 2025 HueNova. Built for creators. By Tasbiya Khan</div>
+</footer>
+
+<style>
+/* ===== TOAST NOTIFICATION ===== */
+#hn-toast {
+  position: fixed;
+  bottom: 2.5rem;
+  right: 2rem;
+  background: #111;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  padding: 0.75rem 1.2rem;
+  border-radius: 10px;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  pointer-events: none;
+  transform: translateY(20px);
+  opacity: 0;
+  transition: transform 0.35s cubic-bezier(0.23,1,0.32,1), opacity 0.35s ease;
+  max-width: 280px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+}
+#hn-toast.show { transform: translateY(0); opacity: 1; }
+#hn-toast .toast-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ===== MODAL ===== */
+#hn-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 99990;
+  display: flex;
+  align-items: center;       /* vertical center */
+  justify-content: center;   /* horizontal center */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+  padding: 5vh 5vw;          /* breathing room from all edges */
+  overflow: hidden;          /* overlay never scrolls; modal body does */
+}
+#hn-modal-overlay.open { opacity: 1; pointer-events: all; }
+
+/* ── Modal shell ── */
+#hn-modal {
+  background: #0e0e0e;
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 22px;
+  width: min(88vw, 1100px);  /* 88 % of viewport, hard cap 1100 px */
+  height: 90vh;              /* fixed tall height so body always scrolls */
+  max-height: 90vh;
+  position: relative;
+  flex-shrink: 0;
+  transform: translateY(32px) scale(0.97);
+  transition: transform 0.42s cubic-bezier(0.23,1,0.32,1);
+  box-shadow: 0 48px 120px rgba(0,0,0,0.9);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;          /* border-radius clip; only #hn-modal-body scrolls */
+}
+#hn-modal-overlay.open #hn-modal { transform: translateY(0) scale(1); }
+
+/* ── Sticky header ── */
+#hn-modal-head {
+  flex-shrink: 0;
+  padding: clamp(1.2rem, 3vw, 1.8rem) clamp(1.2rem, 3vw, 2.2rem) 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  position: relative;
+  background: #0e0e0e;
+}
+
+/* ── Scrollable body ── */
+#hn-modal-body {
+  flex: 1 1 0;           /* take remaining height, shrink to fit */
+  min-height: 0;         /* CRITICAL: without this flex child won't shrink below content height */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1.4rem clamp(1.2rem, 3vw, 2.2rem) 2rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+#hn-modal-body::-webkit-scrollbar { width: 4px; }
+#hn-modal-body::-webkit-scrollbar-track { background: transparent; }
+#hn-modal-body::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: 4px;
+}
+.modal-close {
+  position: absolute;
+  top: 1.2rem; right: 1.4rem;
+  background: rgba(255,255,255,0.06);
+  border: none;
+  color: var(--muted);
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  font-size: 1rem;
+  cursor: none;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s, color 0.2s;
+  z-index: 2;
+}
+.modal-close:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+.modal-eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--accent3);
+  margin-bottom: 0.6rem;
+}
+.modal-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+.modal-sub {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  margin-bottom: 0;
+}
+.modal-input-row {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 0.8rem;
+}
+.modal-input {
+  flex: 1;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  font-family: 'Cabinet Grotesk', sans-serif;
+  font-size: 0.9rem;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.3s ease;
+  cursor: text;
+}
+.modal-input:focus { border-color: rgba(58,255,212,0.4); }
+.modal-input::placeholder { color: var(--muted); }
+.modal-generate-btn {
+  background: var(--text);
+  color: var(--bg);
+  border: none;
+  border-radius: 10px;
+  padding: 0.75rem 1.6rem;
+  font-family: 'Cabinet Grotesk', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: none;
+  white-space: nowrap;
+  transition: opacity 0.2s, transform 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.modal-generate-btn:hover { transform: scale(1.02); }
+.modal-generate-btn:active { transform: scale(0.98); }
+.modal-generate-btn.loading { opacity: 0.6; pointer-events: none; }
+.modal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 1.2rem;
+  margin-bottom: 0;
+}
+.modal-chip {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  padding: 0.32rem 0.8rem;
+  border-radius: 100px;
+  cursor: none;
+  transition: all 0.25s ease;
+}
+.modal-chip:hover { border-color: rgba(255,255,255,0.25); color: var(--text); background: rgba(255,255,255,0.04); }
+
+/* ── Two-column result layout on wide modal ── */
+.modal-result-area { margin-top: 1.6rem; }
+.modal-result-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.8rem;
+}
+.modal-result-swatches {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 0.85rem;
+}
+.modal-result-swatch {
+  flex: 1;
+  height: 62px;
+  border-radius: 12px;
+  cursor: none;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.modal-result-swatch:hover { transform: scale(1.06) translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.5); }
+.modal-result-swatch .swatch-hex {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 0.3rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.5rem;
+  color: rgba(255,255,255,0.75);
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(4px);
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.modal-result-swatch:hover .swatch-hex { opacity: 1; }
+.modal-result-gradient {
+  height: 52px;
+  border-radius: 12px;
+  margin-bottom: 0.9rem;
+  transition: transform 0.2s;
+  cursor: none;
+}
+.modal-result-gradient:hover { transform: translateY(-2px); }
+.modal-export-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.modal-export-btn {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  padding: 0.38rem 0.9rem;
+  border-radius: 8px;
+  cursor: none;
+  transition: all 0.25s ease;
+}
+.modal-export-btn:hover { border-color: rgba(255,255,255,0.25); color: var(--text); background: rgba(255,255,255,0.04); }
+.modal-loading-bar {
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent1), var(--accent2), var(--accent3));
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.05s linear;
+  margin-bottom: 1rem;
+  display: none;
+}
+
+/* Copied flash on swatch */
+.swatch-copied {
+  position: absolute;
+  inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  color: var(--accent3);
+  opacity: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  transition: opacity 0.2s;
+}
+
+/* ===== LIGHT / DARK THEME CARDS ===== */
+.modal-themes-section {
+  margin-top: 1.6rem;
+  display: none;
+}
+.modal-themes-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.07);
+  margin-bottom: 1.2rem;
+}
+.modal-themes-header {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 0.8rem;
+}
+.modal-themes-eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.modal-themes-badge {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.52rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0.18rem 0.55rem;
+  border-radius: 100px;
+  background: rgba(201,123,255,0.1);
+  border: 1px solid rgba(201,123,255,0.22);
+  color: #c97bff;
+}
+.modal-theme-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 580px) {
+  .modal-theme-cards { grid-template-columns: 1fr; }
+  #hn-modal { width: 96vw; }
+}
+.modal-theme-card {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: transform 0.28s ease, box-shadow 0.28s ease;
+  cursor: pointer;
+}
+.modal-theme-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+}
+
+/* card top label row */
+.theme-card-header {
+  padding: 0.65rem 1rem 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.theme-card-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+.theme-card-icon { font-size: 0.8rem; line-height: 1; }
+
+/* ── Mini website preview ── */
+.theme-card-preview {
+  padding: 0 0.8rem 0.55rem;
+}
+
+/* browser chrome bar */
+.tc-browser-bar {
+  display: flex; align-items: center; gap: 4px;
+  padding: 0.32rem 0.6rem;
+  border-radius: 6px 6px 0 0;
+  margin-bottom: 0;
+}
+.tc-browser-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  opacity: 0.65;
+}
+.tc-browser-url {
+  flex: 1; height: 4px; border-radius: 3px; opacity: 0.2; margin-left: 4px;
+}
+
+/* navbar */
+.tc-navbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.32rem 0.6rem;
+  margin-bottom: 0;
+}
+.tc-navbar-brand { width: 32px; height: 5px; border-radius: 3px; opacity: 0.9; }
+.tc-navbar-links { display: flex; gap: 5px; }
+.tc-navbar-link  { width: 16px; height: 4px; border-radius: 2px; opacity: 0.5; }
+
+/* gradient hero banner */
+.tc-hero-banner {
+  height: 48px;
+  border-radius: 0;
+  position: relative;
+  overflow: hidden;
+  display: flex; align-items: center;
+  padding: 0 0.75rem;
+  gap: 6px;
+  margin-bottom: 0;
+}
+.tc-hero-banner::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.18);
+}
+.tc-hero-text-block { position: relative; z-index: 1; flex: 1; }
+.tc-hero-h { height: 7px; border-radius: 3px; width: 55%; margin-bottom: 4px; }
+.tc-hero-p { height: 4px; border-radius: 2px; width: 40%; }
+.tc-hero-actions { position: relative; z-index: 1; display: flex; gap: 4px; }
+.tc-hero-btn {
+  height: 16px; width: 36px; border-radius: 4px;
+}
+.tc-hero-btn-ghost {
+  height: 16px; width: 28px; border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.5);
+  background: transparent;
+}
+
+/* content area */
+.tc-content {
+  padding: 0.4rem 0.5rem 0.3rem;
+  display: flex; gap: 5px;
+}
+
+/* stat-like chips */
+.tc-stat-row {
+  display: flex; gap: 4px;
+  padding: 0 0.5rem 0.35rem;
+}
+.tc-stat {
+  flex: 1; border-radius: 5px;
+  padding: 4px 5px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.tc-stat-num { height: 7px; border-radius: 3px; width: 60%; }
+.tc-stat-lbl { height: 3px; border-radius: 2px; width: 80%; opacity: 0.4; }
+
+/* cards */
+.tc-card {
+  flex: 1; border-radius: 6px; padding: 6px 6px 5px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.tc-card-title  { height: 5px; border-radius: 3px; width: 70%; }
+.tc-card-body   { height: 3px; border-radius: 2px; width: 90%; opacity: 0.5; }
+.tc-card-body2  { height: 3px; border-radius: 2px; width: 65%; opacity: 0.35; }
+.tc-card-accent { height: 10px; width: 24px; border-radius: 3px; margin-top: 2px; }
+
+/* 5-slot swatch row at bottom */
+.theme-card-swatches {
+  display: flex;
+  height: 28px;
+  margin-top: 2px;
+}
+.theme-card-swatch {
+  flex: 1;
+  position: relative;
+  transition: flex 0.22s ease;
+}
+.theme-card-swatch:hover { flex: 1.8; }
+.theme-card-swatch .tc-tooltip {
+  position: absolute;
+  bottom: calc(100% + 5px);
+  left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(6px);
+  color: rgba(255,255,255,0.88);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.46rem;
+  letter-spacing: 0.08em;
+  padding: 0.2rem 0.45rem;
+  border-radius: 5px;
+  white-space: nowrap;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.16s ease;
+  z-index: 20;
+}
+.theme-card-swatch:hover .tc-tooltip { opacity: 1; }
+
+/* role labels */
+.theme-card-roles {
+  display: flex;
+  padding: 0.3rem 0.7rem 0.5rem;
+}
+.theme-card-role {
+  flex: 1;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: center;
+  opacity: 0.4;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* copy button */
+.theme-card-copy {
+  display: block;
+  width: calc(100% - 1.4rem);
+  margin: 0 0.7rem 0.7rem;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  border-radius: 7px;
+  padding: 0.38rem 0;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.54rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.theme-card-copy:hover {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.2);
+}
+
+/* ===== UI PREVIEW INSIDE THEME CARDS (legacy stubs kept for compat) ===== */
+.theme-card-preview {}
+.tc-hero { padding: 0.4rem 0 0.3rem; }
+.tc-hero-heading { height: 6px; border-radius: 3px; width: 70%; margin-bottom: 5px; opacity: 0.9; }
+.tc-hero-sub     { height: 4px; border-radius: 2px; width: 50%; margin-bottom: 8px; opacity: 0.5; }
+.tc-btns { display: flex; gap: 5px; }
+.tc-btn-primary   { height: 14px; width: 42px; border-radius: 4px; opacity: 0.95; }
+.tc-btn-secondary { height: 14px; width: 32px; border-radius: 4px; opacity: 0.35; border: 1px solid; }
+.tc-cards { display: flex; gap: 4px; margin-bottom: 0.3rem; }
+.tc-card-line { height: 3px; border-radius: 2px; opacity: 0.7; }
+
+/* Regen theme button row */
+.modal-themes-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.modal-regen-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border: 1px solid rgba(201,123,255,0.3);
+  background: rgba(201,123,255,0.07);
+  color: #c97bff;
+  padding: 0.38rem 0.9rem;
+  border-radius: 100px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+.modal-regen-btn:hover {
+  background: rgba(201,123,255,0.15);
+  border-color: rgba(201,123,255,0.6);
+}
+.modal-regen-btn svg { flex-shrink: 0; }
+.regen-spin { animation: regen-rotate 0.55s cubic-bezier(0.4,0,0.2,1); }
+@keyframes regen-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+
+<!-- ===== TOAST ===== -->
+<div id="hn-toast">
+  <div class="toast-dot" id="toast-dot"></div>
+  <span id="toast-msg"></span>
+</div>
+
+<!-- ===== MODAL ===== -->
+<div id="hn-modal-overlay" role="dialog" aria-modal="true">
+  <div id="hn-modal">
+
+    <!-- ── Sticky header ── -->
+    <div id="hn-modal-head">
+      <button class="modal-close" id="modal-close-btn" aria-label="Close">✕</button>
+      <p class="modal-eyebrow">HueNova · AI Generator</p>
+      <h2 class="modal-title">Generate your palette</h2>
+      <p class="modal-sub">Describe a mood, brand, or scene — or pick a prompt below.</p>
+    </div>
+
+    <!-- ── Scrollable body ── -->
+    <div id="hn-modal-body">
+
+      <div class="modal-input-row" style="margin-top:1.2rem;">
+        <input class="modal-input" id="modal-prompt-input" type="text" placeholder="e.g. calm ocean morning, bold startup energy…" maxlength="120"/>
+        <button class="modal-generate-btn" id="modal-gen-btn">Generate →</button>
+      </div>
+
+      <div class="modal-loading-bar" id="modal-loading-bar"></div>
+
+      <div class="modal-chips">
+        <button class="modal-chip" data-prompt="calm ocean morning">🌊 Ocean Morning</button>
+        <button class="modal-chip" data-prompt="bold startup energy">🚀 Bold Startup</button>
+        <button class="modal-chip" data-prompt="luxury skincare brand warm earthy">✨ Luxury Skincare</button>
+        <button class="modal-chip" data-prompt="neon cyberpunk city night">🌃 Cyberpunk City</button>
+        <button class="modal-chip" data-prompt="soft pastel spring garden">🌸 Spring Garden</button>
+        <button class="modal-chip" data-prompt="dark moody gothic editorial">🖤 Gothic Editorial</button>
+        <button class="modal-chip" data-prompt="fresh mint modern saas">💚 Fresh SaaS</button>
+        <button class="modal-chip" data-prompt="warm desert sunset minimal">🏜️ Desert Sunset</button>
+      </div>
+
+      <div class="modal-result-area" id="modal-result-area" style="display:none;">
+        <p class="modal-result-label" id="modal-result-label">Generated Palette</p>
+        <div class="modal-result-swatches" id="modal-result-swatches"></div>
+        <div class="modal-result-gradient" id="modal-result-gradient"></div>
+        <div class="modal-export-row">
+          <button class="modal-export-btn" id="export-css">CSS Variables</button>
+          <button class="modal-export-btn" id="export-tailwind">Tailwind Config</button>
+          <button class="modal-export-btn" id="export-json">JSON</button>
+          <button class="modal-export-btn" id="export-copy-all">Copy All Hex</button>
+        </div>
+
+        <!-- ── Light & Dark Theme Suggestions ── -->
+        <div class="modal-themes-section" id="modal-themes-section">
+          <div class="modal-themes-divider"></div>
+          <div class="modal-themes-header">
+            <span class="modal-themes-eyebrow">Theme Suggestions</span>
+            <span class="modal-themes-badge">Auto-generated</span>
+          </div>
+          <div class="modal-themes-actions">
+            <button class="modal-regen-btn" id="modal-regen-themes-btn">
+              <svg id="regen-themes-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+              Regenerate Variation
+            </button>
+          </div>
+          <div class="modal-theme-cards" id="modal-theme-cards"></div>
+        </div>
+      </div>
+
+    </div><!-- /hn-modal-body -->
+  </div>
+</div>
+
+<script>
+// ================================================================
+//  HueNova — Interactive Logic
+//  Sections: Cursor · Progress · Toast · Palette Engine ·
+//            Modal · Button Wiring · Spectrum · GSAP Animations
+// ================================================================
+
+// ─── 1. CURSOR ───────────────────────────────────────────────────
+const cursor = document.getElementById('cursor');
+const follower = document.getElementById('cursor-follower');
+let mx = 0, my = 0, fx = 0, fy = 0;
+
+document.addEventListener('mousemove', e => {
+  mx = e.clientX; my = e.clientY;
+  cursor.style.transform = `translate(${mx - 6}px, ${my - 6}px)`;
+});
+
+(function animateFollower() {
+  fx += (mx - fx - 20) * 0.12;
+  fy += (my - fy - 20) * 0.12;
+  follower.style.transform = `translate(${fx}px, ${fy}px)`;
+  requestAnimationFrame(animateFollower);
+})();
+
+// ─── 2. SCROLL PROGRESS BAR ──────────────────────────────────────
+const progressBar = document.getElementById('progress-bar');
+window.addEventListener('scroll', () => {
+  const doc = document.documentElement;
+  const pct = doc.scrollTop / (doc.scrollHeight - doc.clientHeight) * 100;
+  progressBar.style.width = pct + '%';
+  document.getElementById('scrollHint').style.opacity = pct > 5 ? '0' : '1';
+}, { passive: true });
+
+// ─── 3. TOAST ────────────────────────────────────────────────────
+const toastEl  = document.getElementById('hn-toast');
+const toastMsg = document.getElementById('toast-msg');
+const toastDot = document.getElementById('toast-dot');
+let toastTimer = null;
+
+function showToast(msg, color = '#3affd4') {
+  toastDot.style.background = color;
+  toastMsg.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2600);
+}
+
+// ─── 4. COPY TO CLIPBOARD ────────────────────────────────────────
+function copyText(text, label = 'Copied!') {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text)
+      .then(() => showToast(label, '#3affd4'))
+      .catch(() => fallbackCopy(text, label));
+  } else {
+    fallbackCopy(text, label);
+  }
+}
+
+function fallbackCopy(text, label) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); showToast(label, '#3affd4'); }
+  catch(e) { showToast('Copy failed — try manual copy', '#ff5c3a'); }
+  document.body.removeChild(ta);
+}
+
+// Flash a "Copied!" overlay on a swatch element
+function flashSwatchCopy(swatchEl) {
+  let overlay = swatchEl.querySelector('.swatch-copied');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'swatch-copied';
+    overlay.textContent = 'copied!';
+    swatchEl.appendChild(overlay);
+  }
+  overlay.style.opacity = '1';
+  setTimeout(() => { overlay.style.opacity = '0'; }, 900);
+}
+
+// ─── 5. SMART COLOR ENGINE ───────────────────────────────────────
+// Converts HSL → hex
+function hslToHex(h, s, l) {
+  h = ((h % 360) + 360) % 360;
+  s /= 100; l /= 100;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => {
+    const k = (n + h / 30) % 12;
+    const c = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * c).toString(16).padStart(2, '0');
+  };
+  return '#' + f(0) + f(8) + f(4);
+}
+
+// hex → {h,s,l}
+function hexToHsl(hex) {
+  let r = parseInt(hex.slice(1,3),16)/255;
+  let g = parseInt(hex.slice(3,5),16)/255;
+  let b = parseInt(hex.slice(5,7),16)/255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b);
+  let h = 0, s = 0, l = (max+min)/2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d/(2-max-min) : d/(max+min);
+    switch(max){
+      case r: h = ((g-b)/d + (g<b?6:0))/6; break;
+      case g: h = ((b-r)/d + 2)/6; break;
+      case b: h = ((r-g)/d + 4)/6; break;
+    }
+  }
+  return { h: Math.round(h*360), s: Math.round(s*100), l: Math.round(l*100) };
+}
+
+// Seeded RNG (0-1) — deterministic per prompt+variation
+function seededRand(seed, index) {
+  const x = Math.sin(seed + index * 9301 + 49297) * 233280;
+  return x - Math.floor(x);
+}
+function strSeed(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = (h * 16777619) >>> 0; }
+  return h;
+}
+
+// ── KEYWORD DICTIONARIES ────────────────────────────────────────
+// Each entry defines hue ranges, saturation range, lightness range,
+// and harmony type — extracted from semantic meaning of the word.
+
+const KEYWORD_MAP = {
+  // MOOD / TONE
+  pastel:      { satRange:[18,38], litRange:[72,88], hueShift:0,   harmony:'analogous'    },
+  muted:       { satRange:[12,30], litRange:[40,65], hueShift:0,   harmony:'analogous'    },
+  vibrant:     { satRange:[72,95], litRange:[42,62], hueShift:0,   harmony:'triadic'      },
+  bold:        { satRange:[70,95], litRange:[30,52], hueShift:0,   harmony:'complementary'},
+  soft:        { satRange:[20,42], litRange:[65,85], hueShift:0,   harmony:'analogous'    },
+  neon:        { satRange:[88,100],litRange:[48,68], hueShift:0,   harmony:'split'        },
+  dark:        { satRange:[35,70], litRange:[8,25],  hueShift:0,   harmony:'analogous'    },
+  light:       { satRange:[18,45], litRange:[70,90], hueShift:0,   harmony:'analogous'    },
+  minimal:     { satRange:[8,22],  litRange:[45,78], hueShift:0,   harmony:'monochrome'   },
+  warm:        { satRange:[50,80], litRange:[38,65], hueShift:15,  harmony:'analogous',   baseHue:[15,50]  },
+  cool:        { satRange:[45,75], litRange:[38,65], hueShift:-10, harmony:'analogous',   baseHue:[185,260]},
+  moody:       { satRange:[25,55], litRange:[12,32], hueShift:0,   harmony:'triadic'      },
+  elegant:     { satRange:[20,45], litRange:[15,45], hueShift:0,   harmony:'analogous'    },
+  luxurious:   { satRange:[25,55], litRange:[15,40], hueShift:0,   harmony:'complementary'},
+  professional:{ satRange:[30,55], litRange:[25,55], hueShift:0,   harmony:'analogous'    },
+  playful:     { satRange:[60,90], litRange:[50,70], hueShift:0,   harmony:'tetradic'     },
+  retro:       { satRange:[40,65], litRange:[40,60], hueShift:0,   harmony:'triadic'      },
+  futuristic:  { satRange:[65,90], litRange:[25,50], hueShift:0,   harmony:'split'        },
+
+  // THEME / SCENE — carry explicit hue anchors
+  ocean:       { satRange:[55,80], litRange:[28,58], hueShift:0,   harmony:'analogous',   baseHue:[195,225]},
+  sea:         { satRange:[55,80], litRange:[28,58], hueShift:0,   harmony:'analogous',   baseHue:[195,215]},
+  water:       { satRange:[50,75], litRange:[35,60], hueShift:0,   harmony:'analogous',   baseHue:[195,220]},
+  forest:      { satRange:[45,70], litRange:[22,48], hueShift:0,   harmony:'analogous',   baseHue:[110,155]},
+  nature:      { satRange:[40,68], litRange:[28,55], hueShift:0,   harmony:'analogous',   baseHue:[90,160] },
+  spring:      { satRange:[38,65], litRange:[55,80], hueShift:0,   harmony:'analogous',   baseHue:[80,160] },
+  summer:      { satRange:[55,80], litRange:[50,72], hueShift:0,   harmony:'analogous',   baseHue:[35,85]  },
+  autumn:      { satRange:[55,78], litRange:[32,55], hueShift:0,   harmony:'analogous',   baseHue:[20,55]  },
+  fall:        { satRange:[55,78], litRange:[32,55], hueShift:0,   harmony:'analogous',   baseHue:[20,55]  },
+  winter:      { satRange:[25,55], litRange:[45,70], hueShift:0,   harmony:'analogous',   baseHue:[195,255]},
+  desert:      { satRange:[38,65], litRange:[42,68], hueShift:0,   harmony:'analogous',   baseHue:[22,48]  },
+  sunset:      { satRange:[68,88], litRange:[42,62], hueShift:0,   harmony:'analogous',   baseHue:[5,40]   },
+  sunrise:     { satRange:[60,82], litRange:[52,72], hueShift:0,   harmony:'analogous',   baseHue:[15,55]  },
+  fire:        { satRange:[75,95], litRange:[35,60], hueShift:0,   harmony:'analogous',   baseHue:[0,30]   },
+  sky:         { satRange:[55,80], litRange:[52,72], hueShift:0,   harmony:'analogous',   baseHue:[195,225]},
+  snow:        { satRange:[8,22],  litRange:[72,92], hueShift:0,   harmony:'monochrome',  baseHue:[210,230]},
+  night:       { satRange:[30,65], litRange:[5,20],  hueShift:0,   harmony:'analogous'    },
+  midnight:    { satRange:[35,65], litRange:[5,18],  hueShift:0,   harmony:'analogous',   baseHue:[220,260]},
+  galaxy:      { satRange:[55,80], litRange:[10,28], hueShift:0,   harmony:'split',       baseHue:[230,290]},
+  aurora:      { satRange:[65,90], litRange:[35,60], hueShift:0,   harmony:'triadic',     baseHue:[140,280]},
+  beach:       { satRange:[50,72], litRange:[58,78], hueShift:0,   harmony:'analogous',   baseHue:[45,200] },
+  tropical:    { satRange:[65,90], litRange:[45,70], hueShift:0,   harmony:'triadic',     baseHue:[160,220]},
+  jungle:      { satRange:[50,75], litRange:[20,45], hueShift:0,   harmony:'analogous',   baseHue:[100,150]},
+  mountain:    { satRange:[28,55], litRange:[32,58], hueShift:0,   harmony:'analogous',   baseHue:[200,240]},
+
+  // INDUSTRY / BRAND
+  luxury:      { satRange:[22,45], litRange:[12,38], hueShift:0,   harmony:'analogous',   baseHue:[25,55]  },
+  gold:        { satRange:[65,82], litRange:[42,62], hueShift:0,   harmony:'analogous',   baseHue:[38,52]  },
+  fintech:     { satRange:[55,78], litRange:[22,45], hueShift:0,   harmony:'complementary',baseHue:[215,255]},
+  crypto:      { satRange:[60,85], litRange:[18,42], hueShift:0,   harmony:'split',       baseHue:[220,270]},
+  startup:     { satRange:[62,88], litRange:[35,58], hueShift:0,   harmony:'triadic'      },
+  saas:        { satRange:[55,78], litRange:[35,55], hueShift:0,   harmony:'analogous',   baseHue:[210,250]},
+  tech:        { satRange:[55,80], litRange:[28,52], hueShift:0,   harmony:'analogous',   baseHue:[200,260]},
+  medical:     { satRange:[40,65], litRange:[35,60], hueShift:0,   harmony:'analogous',   baseHue:[185,220]},
+  healthcare:  { satRange:[40,65], litRange:[38,62], hueShift:0,   harmony:'analogous',   baseHue:[185,220]},
+  fashion:     { satRange:[20,50], litRange:[15,45], hueShift:0,   harmony:'monochrome'   },
+  beauty:      { satRange:[25,55], litRange:[45,72], hueShift:0,   harmony:'analogous',   baseHue:[300,355]},
+  skincare:    { satRange:[18,40], litRange:[55,80], hueShift:0,   harmony:'analogous',   baseHue:[20,60]  },
+  food:        { satRange:[60,85], litRange:[40,65], hueShift:0,   harmony:'triadic',     baseHue:[15,55]  },
+  coffee:      { satRange:[38,62], litRange:[18,38], hueShift:0,   harmony:'monochrome',  baseHue:[20,42]  },
+  gaming:      { satRange:[72,98], litRange:[28,55], hueShift:0,   harmony:'split',       baseHue:[240,300]},
+  cyberpunk:   { satRange:[82,100],litRange:[40,62], hueShift:0,   harmony:'split',       baseHue:[265,310]},
+  gothic:      { satRange:[20,45], litRange:[5,22],  hueShift:0,   harmony:'analogous',   baseHue:[260,310]},
+  editorial:   { satRange:[12,35], litRange:[8,28],  hueShift:0,   harmony:'monochrome'   },
+  corporate:   { satRange:[30,55], litRange:[25,50], hueShift:0,   harmony:'analogous',   baseHue:[210,250]},
+  clean:       { satRange:[20,45], litRange:[55,82], hueShift:0,   harmony:'analogous'    },
+  fresh:       { satRange:[45,70], litRange:[52,72], hueShift:0,   harmony:'analogous',   baseHue:[140,195]},
+  mint:        { satRange:[40,62], litRange:[58,78], hueShift:0,   harmony:'analogous',   baseHue:[155,180]},
+  lavender:    { satRange:[28,50], litRange:[55,80], hueShift:0,   harmony:'analogous',   baseHue:[260,290]},
+  rose:        { satRange:[45,72], litRange:[52,72], hueShift:0,   harmony:'analogous',   baseHue:[330,355]},
+  pink:        { satRange:[40,72], litRange:[52,75], hueShift:0,   harmony:'analogous',   baseHue:[320,355]},
+  purple:      { satRange:[45,75], litRange:[28,52], hueShift:0,   harmony:'analogous',   baseHue:[260,295]},
+  blue:        { satRange:[55,80], litRange:[30,55], hueShift:0,   harmony:'analogous',   baseHue:[210,245]},
+  green:       { satRange:[50,75], litRange:[28,52], hueShift:0,   harmony:'analogous',   baseHue:[120,155]},
+  red:         { satRange:[65,88], litRange:[28,50], hueShift:0,   harmony:'analogous',   baseHue:[0,18]   },
+  orange:      { satRange:[68,88], litRange:[40,62], hueShift:0,   harmony:'analogous',   baseHue:[22,42]  },
+  yellow:      { satRange:[65,85], litRange:[52,70], hueShift:0,   harmony:'analogous',   baseHue:[48,65]  },
+  teal:        { satRange:[55,78], litRange:[30,52], hueShift:0,   harmony:'analogous',   baseHue:[170,195]},
+  cyan:        { satRange:[65,88], litRange:[42,65], hueShift:0,   harmony:'analogous',   baseHue:[180,200]},
+  monochrome:  { satRange:[0,12],  litRange:[10,90], hueShift:0,   harmony:'monochrome'   },
+  earth:       { satRange:[28,55], litRange:[28,52], hueShift:0,   harmony:'analogous',   baseHue:[18,55]  },
+  earthy:      { satRange:[28,52], litRange:[28,52], hueShift:0,   harmony:'analogous',   baseHue:[18,55]  },
+  vintage:     { satRange:[22,48], litRange:[35,58], hueShift:0,   harmony:'analogous'    },
+  modern:      { satRange:[42,72], litRange:[32,55], hueShift:0,   harmony:'complementary'},
+};
+
+const HARMONY_TYPES = {
+  analogous:     (h) => [h, h+22, h+44, h+66, h+88],
+  complementary: (h) => [h, h+180, h+25, h+155, h+90],
+  split:         (h) => [h, h+150, h+210, h+60, h+180],
+  triadic:       (h) => [h, h+120, h+240, h+60, h+300],
+  tetradic:      (h) => [h, h+90,  h+180, h+270,h+45],
+  monochrome:    (h) => [h, h, h, h, h],
+};
+
+// ── SMART PROMPT PARSER ─────────────────────────────────────────
+// Returns a resolved config object blending all matched keywords
+function parsePrompt(prompt) {
+  const words = prompt.toLowerCase()
+    .replace(/[^a-z\s]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 1);
+
+  const matched = [];
+  words.forEach(w => {
+    // exact match
+    if (KEYWORD_MAP[w]) { matched.push(KEYWORD_MAP[w]); return; }
+    // prefix/substring match (e.g. "pastelish", "luxury-brand")
+    for (const [key, val] of Object.entries(KEYWORD_MAP)) {
+      if (w.includes(key) || key.includes(w)) { matched.push(val); return; }
+    }
+  });
+
+  if (matched.length === 0) {
+    // Fallback: seed-driven but deterministic
+    return null;
+  }
+
+  // Merge: average the ranges, collect hue anchors, pick dominant harmony
+  const harmonyCounts = {};
+  let satMin = 0, satMax = 0, litMin = 0, litMax = 0;
+  let hueAnchors = [];
+
+  matched.forEach(m => {
+    satMin += m.satRange[0]; satMax += m.satRange[1];
+    litMin += m.litRange[0]; litMax += m.litRange[1];
+    if (m.baseHue) hueAnchors.push(m.baseHue);
+    harmonyCounts[m.harmony] = (harmonyCounts[m.harmony] || 0) + 1;
+  });
+  const n = matched.length;
+  satMin = Math.round(satMin / n);
+  satMax = Math.round(satMax / n);
+  litMin = Math.round(litMin / n);
+  litMax = Math.round(litMax / n);
+
+  const harmony = Object.entries(harmonyCounts).sort((a,b) => b[1]-a[1])[0][0];
+
+  return { satMin, satMax, litMin, litMax, hueAnchors, harmony };
+}
+
+// ── MAIN GENERATION FUNCTION ─────────────────────────────────────
+// `variation` (0,1,2…) lets us produce styled variations of same prompt
+function generatePaletteFromPrompt(prompt, variation = 0) {
+  const config  = parsePrompt(prompt);
+  const seedStr = prompt.toLowerCase().trim() + ':' + variation;
+  const seed    = strSeed(seedStr);
+
+  let baseHue, satMin, satMax, litMin, litMax, harmonyName;
+
+  if (config) {
+    satMin = config.satMin; satMax = config.satMax;
+    litMin = config.litMin; litMax = config.litMax;
+    harmonyName = config.harmony;
+
+    if (config.hueAnchors.length > 0) {
+      // Pick a hue anchor randomly within the allowed ranges
+      const anchor = config.hueAnchors[Math.floor(seededRand(seed, 10) * config.hueAnchors.length)];
+      baseHue = anchor[0] + Math.floor(seededRand(seed, 11) * (anchor[1] - anchor[0]));
+    } else {
+      baseHue = Math.floor(seededRand(seed, 1) * 360);
+    }
+    // Vary hue per variation to give distinct-but-related palettes
+    baseHue = (baseHue + variation * 28) % 360;
+  } else {
+    // Pure seed-fallback
+    baseHue  = Math.floor(seededRand(seed, 1) * 360);
+    satMin   = 45 + Math.floor(seededRand(seed, 6) * 30);
+    satMax   = satMin + 25;
+    litMin   = 30 + Math.floor(seededRand(seed, 7) * 20);
+    litMax   = litMin + 30;
+    const harmonies = Object.keys(HARMONY_TYPES);
+    harmonyName = harmonies[Math.floor(seededRand(seed, 0) * harmonies.length)];
+  }
+
+  const hues  = HARMONY_TYPES[harmonyName](baseHue);
+  const satSpread = seededRand(seed, 4) * (satMax - satMin);
+  const litSpread = seededRand(seed, 5) * (litMax - litMin);
+
+  const colors = hues.map((h, i) => {
+    const sv = seededRand(seed, 20 + i) * satSpread;
+    const lv = seededRand(seed, 30 + i) * litSpread;
+    const s = Math.min(satMax, Math.max(satMin, satMin + sv + (i % 2 === 0 ? 3 : -3)));
+    const l = Math.min(litMax, Math.max(litMin, litMin + lv + (i - 2) * 6));
+    return hslToHex(h, s, l);
+  });
+
+  const gradient = `linear-gradient(135deg, ${colors.join(', ')})`;
+  const harmonyLabel = harmonyName.charAt(0).toUpperCase() + harmonyName.slice(1);
+
+  return { colors, gradient, type: harmonyLabel, prompt, variation };
+}
+
+// ─── 6. PRESET PALETTES (theme tabs) ─────────────────────────────
+const PRESETS = {
+  ocean:  { colors: ['#023e8a','#0077b6','#0096c7','#00b4d8','#48cae4'], gradient: 'linear-gradient(135deg,#023e8a,#0077b6,#00b4d8,#48cae4,#90e0ef)', type: 'Analogous' },
+  forest: { colors: ['#1b4332','#2d6a4f','#40916c','#52b788','#95d5b2'], gradient: 'linear-gradient(135deg,#1b4332,#2d6a4f,#52b788,#95d5b2,#d8f3dc)', type: 'Monochromatic' },
+  sunset: { colors: ['#3d0000','#9b2226','#ee9b00','#ca6702','#ffba08'], gradient: 'linear-gradient(135deg,#3d0000,#9b2226,#ca6702,#ee9b00,#ffba08)', type: 'Split-Complementary' },
+  mono:   { colors: ['#212529','#495057','#868e96','#ced4da','#f8f9fa'], gradient: 'linear-gradient(135deg,#212529,#495057,#868e96,#ced4da,#f8f9fa)', type: 'Monochrome' },
+};
+
+let currentPaletteKey  = 'ocean';  // active preset tab key
+let currentPaletteData = PRESETS.ocean; // live palette data (preset or generated)
+
+// ─── 7. RENDER PALETTE (demo section) ────────────────────────────
+function renderPalette(data, animateIn = true) {
+  currentPaletteData = data;
+  const container = document.getElementById('paletteSwatches');
+  container.innerHTML = '';
+
+  data.colors.forEach(hex => {
+    const sw = document.createElement('div');
+    sw.className = 'palette-swatch';
+    sw.style.background = hex;
+    sw.innerHTML = `<div class="swatch-hex">${hex}</div>`;
+    sw.addEventListener('click', () => {
+      copyText(hex, `${hex} copied!`);
+      flashSwatchCopy(sw);
+    });
+    container.appendChild(sw);
+  });
+
+  document.getElementById('gradientRow').style.background = data.gradient;
+  document.getElementById('paletteType').textContent = data.type;
+
+  if (animateIn) {
+    gsap.fromTo('.palette-swatch',
+      { scale: 0.7, opacity: 0 },
+      { scale: 1, opacity: 1, duration: 0.45, stagger: 0.07, ease: 'back.out(1.7)' }
+    );
+    gsap.fromTo('#gradientRow',
+      { scaleX: 0, transformOrigin: 'left' },
+      { scaleX: 1, duration: 0.65, ease: 'power3.out' }
+    );
+  }
+}
+
+// ─── 8. SWITCH PRESET TAB ────────────────────────────────────────
+function switchPalette(name, sourceEl) {
+  currentPaletteKey = name;
+  document.querySelectorAll('.theme-tab').forEach(t => t.classList.remove('active'));
+  if (sourceEl) sourceEl.classList.add('active');
+  renderPalette(PRESETS[name]);
+}
+
+// Attach theme tab click handlers (inline onclick removed, use delegation)
+document.querySelectorAll('.theme-tab').forEach(btn => {
+  const key = btn.textContent.trim().toLowerCase();
+  // Map display names to keys
+  const keyMap = { ocean: 'ocean', forest: 'forest', sunset: 'sunset', mono: 'mono' };
+  btn.addEventListener('click', () => switchPalette(keyMap[key] || key, btn));
+});
+
+// ─── 9. REGENERATE (demo section) ────────────────────────────────
+function regenPalette() {
+  // Generate a random palette by using a random seed phrase
+  const seeds = [
+    'midnight aurora','coral reef dusk','forest mist dawn','golden hour café',
+    'arctic glacier pale','volcanic fire dark','sakura bloom spring',
+    'urban neon rain','dried lavender field','terracotta studio',
+    'deep ocean trench','amber whisky warm','icy mint fresh',
+    'burnt sienna warm','electric violet pop','sage green calm',
+  ];
+  const pick = seeds[Math.floor(Math.random() * seeds.length)];
+  const data = generatePaletteFromPrompt(pick);
+
+  // De-highlight all tabs
+  document.querySelectorAll('.theme-tab').forEach(t => t.classList.remove('active'));
+  currentPaletteKey = '__generated__';
+
+  // Spin the regen icon for feedback
+  const icon = document.querySelector('.regen-icon');
+  gsap.to(icon, { rotation: '+=360', duration: 0.55, ease: 'power2.inOut' });
+
+  renderPalette(data);
+  showToast(`New palette: "${pick}"`, '#c97bff');
+}
+
+// Attach regen button
+document.querySelector('.regen-btn').addEventListener('click', regenPalette);
+
+// ─── 10. GRADIENT ROW — click to copy CSS ────────────────────────
+document.getElementById('gradientRow').addEventListener('click', () => {
+  copyText(`background: ${currentPaletteData.gradient};`, 'Gradient CSS copied!');
+});
+
+// ─── 11. MODAL LOGIC ─────────────────────────────────────────────
+const modalOverlay = document.getElementById('hn-modal-overlay');
+const modalInput   = document.getElementById('modal-prompt-input');
+const modalGenBtn  = document.getElementById('modal-gen-btn');
+const modalResult  = document.getElementById('modal-result-area');
+const modalSwatches = document.getElementById('modal-result-swatches');
+const modalGrad    = document.getElementById('modal-result-gradient');
+const modalLoading = document.getElementById('modal-loading-bar');
+const modalLabel   = document.getElementById('modal-result-label');
+
+let modalCurrentData = null; // last generated palette in modal
+let loadingInterval  = null;
+let modalCurrentPrompt = '';   // track active prompt for regen
+let modalCurrentVariation = 0; // track variation index
+
+function openModal() {
+  document.body.style.overflow = 'hidden';
+  modalOverlay.classList.add('open');
+  // Hide custom cursor inside modal — native cursor takes over
+  cursor.style.opacity = '0';
+  follower.style.opacity = '0';
+  // Reset result areas for fresh session
+  modalResult.style.display = 'none';
+  document.getElementById('modal-themes-section').style.display = 'none';
+  setTimeout(() => modalInput.focus(), 200);
+}
+
+function closeModal() {
+  modalOverlay.classList.remove('open');
+  document.body.style.overflow = '';
+  // Restore custom cursor
+  cursor.style.opacity = '1';
+  follower.style.opacity = '1';
+}
+
+document.getElementById('modal-close-btn').addEventListener('click', closeModal);
+modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// Prompt chips
+document.querySelectorAll('.modal-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    modalInput.value = chip.dataset.prompt;
+    modalInput.focus();
+    triggerGeneration(chip.dataset.prompt);
+  });
+});
+
+// Generate button
+modalGenBtn.addEventListener('click', () => {
+  const prompt = modalInput.value.trim();
+  if (!prompt) {
+    modalInput.style.borderColor = 'rgba(255,92,58,0.5)';
+    setTimeout(() => modalInput.style.borderColor = '', 1200);
+    showToast('Enter a prompt first', '#ff5c3a');
+    return;
+  }
+  triggerGeneration(prompt);
+});
+
+modalInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') modalGenBtn.click();
+});
+
+function triggerGeneration(prompt, variation = 0) {
+  modalCurrentPrompt    = prompt;
+  modalCurrentVariation = variation;
+  // Show loading state
+  modalGenBtn.classList.add('loading');
+  modalGenBtn.textContent = 'Generating…';
+  modalLoading.style.display = 'block';
+  modalResult.style.display  = 'none';
+  clearInterval(loadingInterval);
+
+  let progress = 0;
+  loadingInterval = setInterval(() => {
+    progress = Math.min(progress + Math.random() * 18, 92);
+    modalLoading.style.width = progress + '%';
+  }, 80);
+
+  // Simulate async generation (swap setTimeout → fetch() for real backend)
+  const delay = 600 + Math.random() * 400;
+  setTimeout(() => {
+    clearInterval(loadingInterval);
+    modalLoading.style.width = '100%';
+
+    const data = generatePaletteFromPrompt(prompt, variation);
+    modalCurrentData = data;
+
+    setTimeout(() => {
+      modalLoading.style.display = 'none';
+      modalLoading.style.width   = '0%';
+      renderModalResult(data, prompt);
+      modalGenBtn.classList.remove('loading');
+      modalGenBtn.textContent = 'Generate →';
+    }, 200);
+  }, delay);
+}
+
+function renderModalResult(data, prompt) {
+  modalLabel.textContent = `"${prompt.slice(0, 40)}${prompt.length > 40 ? '…' : ''}" — ${data.type}`;
+  modalSwatches.innerHTML = '';
+
+  data.colors.forEach(hex => {
+    const sw = document.createElement('div');
+    sw.className = 'modal-result-swatch';
+    sw.style.background = hex;
+    sw.innerHTML = `<div class="swatch-hex">${hex}</div>`;
+    sw.addEventListener('click', () => {
+      copyText(hex, `${hex} copied!`);
+      flashSwatchCopy(sw);
+    });
+    modalSwatches.appendChild(sw);
+  });
+
+  modalGrad.style.background = data.gradient;
+  modalGrad.addEventListener('click', () => {
+    copyText(`background: ${data.gradient};`, 'Gradient CSS copied!');
+  }, { once: true });
+
+  modalResult.style.display = 'block';
+
+  // Animate palette swatches in
+  gsap.fromTo(modalSwatches.children,
+    { y: 15, opacity: 0, scale: 0.9 },
+    { y: 0, opacity: 1, scale: 1, stagger: 0.06, duration: 0.4, ease: 'back.out(1.5)' }
+  );
+  gsap.fromTo(modalGrad,
+    { scaleX: 0, transformOrigin: 'left' },
+    { scaleX: 1, duration: 0.5, ease: 'power3.out', delay: 0.2 }
+  );
+
+  // ── Generate and render Light + Dark theme suggestions ──
+  const themes = deriveThemes(data.colors, data.gradient);
+  renderThemeCards(themes);
+}
+
+// ─── 12a. THEME ENGINE ───────────────────────────────────────────
+// Derives light+dark themes AND carries all 5 raw palette colors + gradient
+function deriveThemes(colors, gradient) {
+  const hsls   = colors.map(hexToHsl);
+  const sorted = [...hsls].sort((a,b) => a.l - b.l);
+  const mostSat = hsls.reduce((a,b) => b.s > a.s ? b : a);
+  const midDark = sorted.find(c => c.l >= 22 && c.l <= 58) || sorted[Math.floor(sorted.length/2)];
+  const h = hsls[2].h;
+
+  // ── Light theme semantic roles derived from palette ──
+  const lightColors = [
+    hslToHex(h, Math.min(mostSat.s*0.1,14), 97),                              // 0: bg
+    hslToHex(midDark.h, Math.min(midDark.s,72), Math.max(midDark.l-4,28)),    // 1: primary
+    hslToHex(midDark.h, Math.max(midDark.s-18,18), Math.min(midDark.l+20,72)),// 2: secondary
+    hslToHex(mostSat.h, Math.min(mostSat.s,90), Math.max(mostSat.l-5,38)),    // 3: accent
+    hslToHex(h, Math.min(mostSat.s*0.18,12), 10),                             // 4: text
+  ];
+
+  const darkBase = sorted[0];
+  // ── Dark theme semantic roles ──
+  const darkColors = [
+    hslToHex(darkBase.h, Math.min(darkBase.s*0.45,18), Math.min(darkBase.l,10)), // 0: bg
+    hslToHex(mostSat.h, Math.min(mostSat.s+8,95), Math.min(mostSat.l+14,68)),    // 1: primary
+    hslToHex(midDark.h, Math.max(midDark.s-20,16), Math.min(midDark.l+12,52)),   // 2: secondary
+    hslToHex(mostSat.h, Math.min(mostSat.s+5,98), Math.min(mostSat.l+22,78)),    // 3: accent
+    hslToHex(h, Math.min(mostSat.s*0.08,9), 93),                                  // 4: text
+  ];
+
+  return [
+    {
+      label:'Light Theme', icon:'☀️', mode:'light',
+      colors: lightColors,
+      palette: colors,        // all 5 raw palette swatches
+      gradient,
+      roles:['bg','primary','secondary','accent','text'],
+    },
+    {
+      label:'Dark Theme', icon:'🌙', mode:'dark',
+      colors: darkColors,
+      palette: colors,
+      gradient,
+      roles:['bg','primary','secondary','accent','text'],
+    },
+  ];
+}
+
+// ─── 12b. RENDER THEME CARDS (full-palette UI preview) ───────────
+function renderThemeCards(themes) {
+  const section   = document.getElementById('modal-themes-section');
+  const container = document.getElementById('modal-theme-cards');
+  container.innerHTML = '';
+
+  themes.forEach((theme, ti) => {
+    const [bg, primary, secondary, accent, text] = theme.colors;
+    const p    = theme.palette;   // raw 5-color palette [p0..p4]
+    const grad = theme.gradient;
+    const isLight = theme.mode === 'light';
+
+    // ── Derive all element colors from the full palette ──────────
+    const navBg = isLight
+      ? primary
+      : hslToHex(hexToHsl(bg).h, Math.min(hexToHsl(bg).s + 10, 28), Math.min(hexToHsl(bg).l + 10, 20));
+
+    // Stat chip backgrounds — palette colors 0, 2, 4, tinted per mode
+    const mkStatBg = (hex) => {
+      const { h, s, l } = hexToHsl(hex);
+      return isLight
+        ? hslToHex(h, Math.min(s, 42), Math.min(l + 30, 93))
+        : hslToHex(h, Math.min(s * 0.5, 22), Math.min(l + 6, 22));
+    };
+
+    // Card panel backgrounds — palette colors 1, 2, 3
+    const mkCardBg = (hex) => {
+      const { h, s, l } = hexToHsl(hex);
+      return isLight
+        ? hslToHex(h, Math.max(s - 16, 6), Math.min(l + 22, 95))
+        : hslToHex(h, Math.max(s - 24, 10), Math.min(l + 10, 26));
+    };
+
+    const statBgs = [mkStatBg(p[0]), mkStatBg(p[2]), mkStatBg(p[4])];
+    const cardBgs = [mkCardBg(p[1]), mkCardBg(p[2]), mkCardBg(p[3])];
+    const cardAccents = [accent, p[3], p[0]];
+
+    const card = document.createElement('div');
+    card.className = 'modal-theme-card';
+    card.style.background = bg;
+
+    card.innerHTML = `
+      <!-- ── Label row ── -->
+      <div class="theme-card-header" style="background:${bg};">
+        <span class="theme-card-label" style="color:${text}">${theme.label}</span>
+        <span class="theme-card-icon">${theme.icon}</span>
+      </div>
+
+      <!-- ── Full UI Preview ── -->
+      <div class="theme-card-preview" style="background:${bg};">
+
+        <!-- Browser chrome -->
+        <div class="tc-browser-bar" style="background:${isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.05)'}">
+          <div class="tc-browser-dot" style="background:#ff5f57"></div>
+          <div class="tc-browser-dot" style="background:#febc2e"></div>
+          <div class="tc-browser-dot" style="background:#28c840"></div>
+          <div style="flex:1; height:4px; border-radius:3px; background:${text}; opacity:0.12; margin-left:5px;"></div>
+        </div>
+
+        <!-- Navbar — primary color -->
+        <div style="background:${navBg}; display:flex; align-items:center; justify-content:space-between; padding:0.36rem 0.65rem;">
+          <div style="width:32px; height:5px; border-radius:3px; background:rgba(255,255,255,${isLight ? '0.9' : '0.65'});"></div>
+          <div style="display:flex; gap:5px; align-items:center;">
+            <div style="width:16px; height:4px; border-radius:2px; background:rgba(255,255,255,0.5);"></div>
+            <div style="width:16px; height:4px; border-radius:2px; background:rgba(255,255,255,0.5);"></div>
+            <div style="width:22px; height:14px; border-radius:4px; background:${accent}; margin-left:4px;"></div>
+          </div>
+        </div>
+
+        <!-- Hero banner — full palette gradient -->
+        <div style="background:${grad}; height:62px; position:relative; overflow:hidden; display:flex; align-items:center; padding:0 0.7rem; gap:8px;">
+          <div style="position:absolute;inset:0;background:${isLight ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.25)'}"></div>
+          <div style="flex:1; position:relative; z-index:1;">
+            <div style="height:8px; border-radius:3px; background:#fff; width:60%; margin-bottom:5px; opacity:0.94;"></div>
+            <div style="height:4px; border-radius:2px; background:#fff; width:42%; opacity:0.6;"></div>
+          </div>
+          <div style="position:relative; z-index:1; display:flex; gap:5px;">
+            <div style="height:18px; width:42px; border-radius:5px; background:#fff; opacity:0.92;"></div>
+            <div style="height:18px; width:32px; border-radius:5px; border:1.5px solid rgba(255,255,255,0.65);"></div>
+          </div>
+        </div>
+
+        <!-- Stat chips — palette[0], palette[2], palette[4] -->
+        <div style="display:flex; gap:5px; padding:0.35rem 0.2rem 0;">
+          ${statBgs.map((sb, si) => `
+            <div style="flex:1; border-radius:6px; background:${sb}; padding:5px 6px;">
+              <div style="height:8px; border-radius:3px; background:${text}; width:52%; opacity:0.82; margin-bottom:3px;"></div>
+              <div style="height:3px; border-radius:2px; background:${text}; width:75%; opacity:0.28;"></div>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Content cards — palette[1], palette[2], palette[3] -->
+        <div style="display:flex; gap:5px; padding:0.3rem 0.2rem 0.3rem; margin-top:3px;">
+          ${cardBgs.map((cb, ci) => `
+            <div style="flex:1; border-radius:7px; background:${cb}; padding:6px 6px 5px; border:1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.07)'};">
+              <div style="height:5px; border-radius:3px; background:${text}; width:${62 + ci * 10}%; margin-bottom:4px; opacity:0.78;"></div>
+              <div style="height:3px; border-radius:2px; background:${text}; width:${82 - ci * 10}%; opacity:0.28; margin-bottom:4px;"></div>
+              <div style="height:9px; width:${22 + ci * 5}px; border-radius:4px; background:${cardAccents[ci]}; opacity:0.88;"></div>
+            </div>
+          `).join('')}
+        </div>
+
+      </div>
+
+      <!-- 5-slot swatch strip (all 5 semantic roles) -->
+      <div class="theme-card-swatches"></div>
+      <div class="theme-card-roles"></div>
+      <button class="theme-card-copy" style="color:${isLight ? 'rgba(0,0,0,0.48)' : 'rgba(255,255,255,0.42)'};">Copy CSS</button>
+    `;
+
+    // Swatch row
+    const swatchRow = card.querySelector('.theme-card-swatches');
+    theme.colors.forEach((hex, i) => {
+      const sw = document.createElement('div');
+      sw.className = 'theme-card-swatch';
+      sw.style.background = hex;
+      sw.innerHTML = `<div class="tc-tooltip">${theme.roles[i]}<br>${hex}</div>`;
+      sw.addEventListener('click', () => { copyText(hex, `${theme.roles[i]} → ${hex} copied!`); flashSwatchCopy(sw); });
+      swatchRow.appendChild(sw);
+    });
+
+    // Role labels
+    const rolesRow = card.querySelector('.theme-card-roles');
+    theme.roles.forEach(role => {
+      const r = document.createElement('div');
+      r.className = 'theme-card-role';
+      r.style.color = isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.27)';
+      r.textContent = role;
+      rolesRow.appendChild(r);
+    });
+
+    // Copy CSS — includes all semantic roles + full raw palette
+    card.querySelector('.theme-card-copy').addEventListener('click', e => {
+      e.stopPropagation();
+      const lines = theme.roles.map((role, i) => `  --${role}: ${theme.colors[i]};`).join('\n');
+      const paletteLines = theme.palette.map((c, i) => `  --palette-${i + 1}: ${c};`).join('\n');
+      const sel = ti === 0 ? ':root' : '[data-theme="dark"]';
+      copyText(`${sel} {\n${lines}\n  /* Raw palette */\n${paletteLines}\n}`, `${theme.label} CSS copied!`);
+    });
+
+    container.appendChild(card);
+  });
+
+  // Show section + staggered entrance animation
+  section.style.display = 'block';
+  gsap.fromTo(container.children,
+    { y: 28, opacity: 0, scale: 0.94 },
+    { y: 0, opacity: 1, scale: 1, stagger: 0.1, duration: 0.52, ease: 'back.out(1.4)', delay: 0.32 }
+  );
+  gsap.fromTo(
+    [section.querySelector('.modal-themes-header'), section.querySelector('.modal-themes-actions')],
+    { y: 10, opacity: 0 },
+    { y: 0, opacity: 1, duration: 0.35, ease: 'power2.out', delay: 0.2, stagger: 0.07 }
+  );
+}
+
+// Wire regen themes button
+document.getElementById('modal-regen-themes-btn').addEventListener('click', () => {
+  if (!modalCurrentPrompt) return;
+  const icon = document.getElementById('regen-themes-icon');
+  icon.classList.remove('regen-spin');
+  void icon.offsetWidth; // reflow to restart animation
+  icon.classList.add('regen-spin');
+  modalCurrentVariation++;
+  // Re-generate palette + themes for same prompt, next variation
+  const data = generatePaletteFromPrompt(modalCurrentPrompt, modalCurrentVariation);
+  modalCurrentData = data;
+  // Refresh swatches + gradient
+  modalLabel.textContent = `"${modalCurrentPrompt.slice(0,40)}${modalCurrentPrompt.length>40?'…':''}" — ${data.type} · v${modalCurrentVariation+1}`;
+  modalSwatches.innerHTML = '';
+  data.colors.forEach(hex => {
+    const sw = document.createElement('div');
+    sw.className = 'modal-result-swatch';
+    sw.style.background = hex;
+    sw.innerHTML = `<div class="swatch-hex">${hex}</div>`;
+    sw.addEventListener('click', () => { copyText(hex, `${hex} copied!`); flashSwatchCopy(sw); });
+    modalSwatches.appendChild(sw);
+  });
+  gsap.fromTo(modalSwatches.children,
+    { scale:0.8, opacity:0 }, { scale:1, opacity:1, stagger:0.05, duration:0.35, ease:'back.out(1.6)' }
+  );
+  modalGrad.style.background = data.gradient;
+  gsap.fromTo(modalGrad, { scaleX:0, transformOrigin:'left' }, { scaleX:1, duration:0.5, ease:'power3.out' });
+  // Refresh themes
+  const themes = deriveThemes(data.colors, data.gradient);
+  renderThemeCards(themes);
+  showToast(`Variation ${modalCurrentVariation + 1} generated`, '#c97bff');
+});
+
+// ─── 12. MODAL EXPORT BUTTONS ────────────────────────────────────
+document.getElementById('export-css').addEventListener('click', () => {
+  if (!modalCurrentData) return;
+  const lines = modalCurrentData.colors.map((c, i) =>
+    `  --color-${['primary','secondary','accent','highlight','base'][i]}: ${c};`
+  ).join('\n');
+  copyText(`:root {\n${lines}\n}`, 'CSS variables copied!');
+});
+
+document.getElementById('export-tailwind').addEventListener('click', () => {
+  if (!modalCurrentData) return;
+  const obj = {};
+  ['primary','secondary','accent','highlight','base'].forEach((k, i) => {
+    obj[k] = modalCurrentData.colors[i];
+  });
+  copyText(
+    `// tailwind.config.js → theme.extend.colors\n${JSON.stringify({ brand: obj }, null, 2)}`,
+    'Tailwind config copied!'
+  );
+});
+
+document.getElementById('export-json').addEventListener('click', () => {
+  if (!modalCurrentData) return;
+  copyText(JSON.stringify({
+    palette: {
+      type:     modalCurrentData.type,
+      prompt:   modalCurrentData.prompt,
+      colors:   modalCurrentData.colors,
+      gradient: modalCurrentData.gradient,
+    }
+  }, null, 2), 'JSON copied!');
+});
+
+document.getElementById('export-copy-all').addEventListener('click', () => {
+  if (!modalCurrentData) return;
+  copyText(modalCurrentData.colors.join(', '), 'All hex codes copied!');
+});
+
+// ─── 13. CTA "TRY HUENOVA FREE" + "GENERATE YOUR FIRST PALETTE" ──
+document.querySelectorAll('.btn-primary').forEach(btn => {
+  btn.addEventListener('click', () => {
+    // Clear previous state, open fresh
+    modalInput.value = '';
+    modalResult.style.display = 'none';
+    openModal();
+  });
+});
+
+// "Watch Demo" → smooth scroll to palette section
+document.querySelectorAll('.btn-ghost').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const target = document.querySelector('.palette-section') || document.querySelector('.features-section');
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+
+// ─── 14. SPECTRUM BARS ───────────────────────────────────────────
+(function buildSpectrum() {
+  const colors = [
+    '#ff0000','#ff1a00','#ff3300','#ff4d00','#ff6600',
+    '#ff8000','#ff9900','#ffb300','#ffcc00','#ffe600',
+    '#ffff00','#ccff00','#99ff00','#66ff00','#33ff00',
+    '#00ff00','#00ff33','#00ff66','#00ff99','#00ffcc',
+    '#00ffff','#00ccff','#0099ff','#0066ff','#0033ff',
+    '#0000ff','#1a00ff','#3300ff','#4d00ff','#6600ff',
+    '#8000ff','#9900ff','#b300ff','#cc00ff','#e600ff',
+    '#ff00ff','#ff00cc','#ff0099','#ff0066','#ff0033',
+  ];
+  const container = document.getElementById('spectrumBars');
+  colors.forEach(c => {
+    const bar = document.createElement('div');
+    bar.className = 's-bar';
+    bar.style.background = `linear-gradient(to top, ${c}cc, ${c}33, transparent)`;
+    container.appendChild(bar);
+  });
+})();
+
+// ─── 15. INITIAL RENDER ──────────────────────────────────────────
+renderPalette(PRESETS.ocean, false);
+
+// ─── 16. GSAP SCROLL ANIMATIONS (unchanged) ──────────────────────
+gsap.registerPlugin(ScrollTrigger);
+
+// Hero entrance
+const heroTl = gsap.timeline({ delay: 0.3 });
+heroTl
+  .to('#heroBadge',        { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' }, 0)
+  .to('#heroTitle',        { opacity: 1, duration: 1, ease: 'power3.out' }, 0.2)
+  .from('.hero-title .word', { y: 80, opacity: 0, rotationX: -30, stagger: 0.15, duration: 1, ease: 'power3.out' }, 0.2)
+  .to('#heroSub',          { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' }, 0.9)
+  .to('#heroCta',          { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' }, 1.1);
+gsap.set(['#heroSub', '#heroCta'], { y: 30 });
+
+// Orbs parallax
+document.querySelectorAll('.orb').forEach((orb, i) => {
+  gsap.to(orb, {
+    y: -60 - i * 20,
+    ease: 'none',
+    scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: 1 + i * 0.3 }
+  });
+});
+
+// Spectrum
+gsap.timeline({
+  scrollTrigger: { trigger: '#spectrumSection', start: 'top bottom', end: 'bottom bottom', scrub: 1 }
+})
+.to('#specLabel',  { opacity: 1, y: 0, duration: 0.3 }, 0)
+.to('#specLabel2', { opacity: 1, y: 0, duration: 0.3 }, 0)
+.to('.s-bar', { scaleY: 1, duration: 1, stagger: { each: 0.02, from: 'center' }, ease: 'power3.out' }, 0.1)
+.to('.s-bar', { scaleY: 0.15, duration: 0.5, stagger: { each: 0.01, from: 'center' }, ease: 'power2.inOut' }, 1.2);
+gsap.set(['#specLabel', '#specLabel2'], { y: 30 });
+
+// Stats
+gsap.utils.toArray('.stat-item').forEach((el, i) => {
+  gsap.to(el, { opacity: 1, y: 0, duration: 0.7, delay: i * 0.1, ease: 'power3.out', scrollTrigger: { trigger: el, start: 'top 85%' } });
+});
+
+// Feature cards
+gsap.utils.toArray('.feature-card').forEach((el, i) => {
+  gsap.to(el, { opacity: 1, y: 0, duration: 0.8, delay: i * 0.12, ease: 'power3.out', scrollTrigger: { trigger: el, start: 'top 85%' } });
+});
+
+// Showcase rows
+['#sr1','#sr2','#sr3','#sr4'].forEach(id => {
+  const el = document.querySelector(id);
+  if (el) gsap.to(el, { opacity: 1, x: 0, duration: 0.9, ease: 'power3.out', scrollTrigger: { trigger: el, start: 'top 85%' } });
+});
+
+// Palette demo
+gsap.from('#paletteDemo', { opacity: 0, x: 60, duration: 1, ease: 'power3.out', scrollTrigger: { trigger: '#paletteDemo', start: 'top 80%' } });
+gsap.from('.palette-info', { opacity: 0, x: -60, duration: 1, ease: 'power3.out', scrollTrigger: { trigger: '.palette-info', start: 'top 80%' } });
+
+// CTA
+gsap.to('#ctaHead',    { opacity: 1, y: 0, duration: 1,   ease: 'power3.out', scrollTrigger: { trigger: '#ctaHead',    start: 'top 80%' } });
+gsap.to('#ctaSub',     { opacity: 1, y: 0, duration: 0.8, delay: 0.2, ease: 'power3.out', scrollTrigger: { trigger: '#ctaSub',     start: 'top 80%' } });
+gsap.to('#ctaActions', { opacity: 1, y: 0, duration: 0.8, delay: 0.4, ease: 'power3.out', scrollTrigger: { trigger: '#ctaActions', start: 'top 80%' } });
+gsap.set(['#ctaHead', '#ctaSub', '#ctaActions'], { y: 40 });
+
+ScrollTrigger.refresh();
+</script>
+</body>
+</html>
