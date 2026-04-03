@@ -32,45 +32,17 @@ body {
   color: var(--text);
   font-family: 'Cabinet Grotesk', sans-serif;
   overflow-x: hidden;
-  cursor: none;
 }
 
-/* CUSTOM CURSOR */
-#cursor {
-  width: 12px; height: 12px;
-  border-radius: 50%;
-  background: var(--text);
-  position: fixed;
-  top: 0; left: 0;
-  pointer-events: none;
-  z-index: 10000;
-  mix-blend-mode: difference;
-  transition: transform 0.15s ease, width 0.3s ease, height 0.3s ease;
-}
-#cursor-follower {
-  width: 40px; height: 40px;
-  border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.3);
-  position: fixed;
-  top: 0; left: 0;
-  pointer-events: none;
-  z-index: 9999;
-  transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1), width 0.4s, height 0.4s, background 0.4s;
-}
-body:has(a:hover) #cursor, body:has(button:hover) #cursor { transform: scale(3); }
-body:has(a:hover) #cursor-follower, body:has(button:hover) #cursor-follower { width: 60px; height: 60px; background: rgba(255,255,255,0.05); }
-
-/* ── MODAL: restore native cursor inside the modal ── */
-#hn-modal-overlay,
-#hn-modal-overlay * { cursor: auto !important; }
+/* ── MODAL: standard cursors inside modal ── */
 #hn-modal-overlay button,
 #hn-modal-overlay .modal-close,
 #hn-modal-overlay .modal-generate-btn,
 #hn-modal-overlay .modal-chip,
 #hn-modal-overlay .modal-export-btn,
 #hn-modal-overlay .modal-result-swatch,
-#hn-modal-overlay .modal-result-gradient { cursor: pointer !important; }
-#hn-modal-overlay input { cursor: text !important; }
+#hn-modal-overlay .modal-result-gradient { cursor: pointer; }
+#hn-modal-overlay input { cursor: text; }
 
 /* PROGRESS BAR */
 #progress-bar {
@@ -264,7 +236,7 @@ body::after {
   font-weight: 700;
   letter-spacing: 0.02em;
   border-radius: 100px;
-  cursor: none;
+  cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   position: relative;
   overflow: hidden;
@@ -291,7 +263,7 @@ body::after {
   font-size: 0.9rem;
   font-weight: 500;
   border-radius: 100px;
-  cursor: none;
+  cursor: pointer;
   transition: border-color 0.3s ease, background 0.3s ease;
 }
 .btn-ghost:hover { border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); }
@@ -415,7 +387,7 @@ body::after {
   opacity: 0;
   transform: translateY(40px);
   transition: background 0.4s ease;
-  cursor: none;
+  cursor: default;
 }
 .feature-card::before {
   content: '';
@@ -529,7 +501,7 @@ body::after {
   color: var(--muted);
   padding: 0.4rem 0.9rem;
   border-radius: 100px;
-  cursor: none;
+  cursor: pointer;
   transition: all 0.3s ease;
 }
 .theme-tab.active, .theme-tab:hover {
@@ -549,7 +521,7 @@ body::after {
   border-radius: 16px;
   position: relative;
   overflow: hidden;
-  cursor: none;
+  cursor: pointer;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 .palette-swatch:hover { transform: scale(1.05) translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
@@ -606,7 +578,7 @@ body::after {
   background: transparent;
   padding: 0.4rem 1rem;
   border-radius: 100px;
-  cursor: none;
+  cursor: pointer;
   transition: all 0.3s ease;
   margin-left: auto;
 }
@@ -622,7 +594,7 @@ body::after {
   border-radius: 14px;
   position: relative;
   overflow: hidden;
-  cursor: none;
+  cursor: pointer;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 .gradient-row:hover { transform: translateY(-2px); box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
@@ -852,7 +824,7 @@ footer {
   color: var(--muted);
   text-decoration: none;
   transition: color 0.3s ease;
-  cursor: none;
+  cursor: pointer;
 }
 .footer-links a:hover { color: var(--text); }
 .footer-copy {
@@ -1382,7 +1354,7 @@ footer {
   font-family: 'Cabinet Grotesk', sans-serif;
   font-size: 0.88rem;
   font-weight: 700;
-  cursor: none;
+  cursor: pointer;
   white-space: nowrap;
   transition: opacity 0.2s, transform 0.2s;
   position: relative;
@@ -1408,7 +1380,7 @@ footer {
   color: var(--muted);
   padding: 0.32rem 0.8rem;
   border-radius: 100px;
-  cursor: none;
+  cursor: pointer;
   transition: all 0.25s ease;
 }
 .modal-chip:hover { border-color: rgba(255,255,255,0.25); color: var(--text); background: rgba(255,255,255,0.04); }
@@ -1432,7 +1404,7 @@ footer {
   flex: 1;
   height: 62px;
   border-radius: 12px;
-  cursor: none;
+  cursor: pointer;
   position: relative;
   overflow: hidden;
   transition: transform 0.25s ease, box-shadow 0.25s ease;
@@ -1457,7 +1429,7 @@ footer {
   border-radius: 12px;
   margin-bottom: 0.9rem;
   transition: transform 0.2s;
-  cursor: none;
+  cursor: pointer;
 }
 .modal-result-gradient:hover { transform: translateY(-2px); }
 .modal-export-row {
@@ -1475,7 +1447,7 @@ footer {
   color: var(--muted);
   padding: 0.38rem 0.9rem;
   border-radius: 8px;
-  cursor: none;
+  cursor: pointer;
   transition: all 0.25s ease;
 }
 .modal-export-btn:hover { border-color: rgba(255,255,255,0.25); color: var(--text); background: rgba(255,255,255,0.04); }
