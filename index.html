@@ -405,22 +405,6 @@ body::after {
 .feature-card:nth-child(3) { --card-glow: rgba(58,255,212,0.10); }
 .feature-card:nth-child(4) { --card-glow: rgba(255,60,140,0.10); }
 
-.feature-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 2rem;
-  font-size: 1.4rem;
-  position: relative;
-}
-.f-icon-1 { background: rgba(255,92,58,0.15); border: 1px solid rgba(255,92,58,0.25); }
-.f-icon-2 { background: rgba(201,123,255,0.12); border: 1px solid rgba(201,123,255,0.2); }
-.f-icon-3 { background: rgba(58,255,212,0.10); border: 1px solid rgba(58,255,212,0.2); }
-.f-icon-4 { background: rgba(255,60,140,0.10); border: 1px solid rgba(255,60,140,0.18); }
-
 .feature-num {
   font-family: 'DM Mono', monospace;
   font-size: 0.6rem;
@@ -831,7 +815,7 @@ footer {
   font-family: 'DM Mono', monospace;
   font-size: 0.6rem;
   letter-spacing: 0.1em;
-  color: var(--muted);
+  color: rgba(255,255,255,0.65);
 }
 
 /* ===================== STATS SECTION ===================== */
@@ -972,7 +956,6 @@ footer {
   <div class="features-grid" id="featuresGrid">
     <div class="feature-card" style="--card-glow: rgba(255,92,58,0.12)">
       <div class="feature-num">01</div>
-      <div class="feature-icon f-icon-1">🎨</div>
       <h3 class="feature-title">Theme-Based Generation</h3>
       <p class="feature-desc">Describe your vision in plain language. "Calm ocean morning" or "Bold startup energy" — HueNova translates concepts into precise color palettes.</p>
       <div class="mini-palette">
@@ -986,7 +969,6 @@ footer {
 
     <div class="feature-card" style="--card-glow: rgba(201,123,255,0.12)">
       <div class="feature-num">02</div>
-      <div class="feature-icon f-icon-2">🌅</div>
       <h3 class="feature-title">Gradient Generator</h3>
       <p class="feature-desc">Generate smooth, multi-stop gradients from any palette. Export as CSS, SVG, or PNG — ready to drop straight into your project.</p>
       <div class="mini-palette">
@@ -998,7 +980,6 @@ footer {
 
     <div class="feature-card" style="--card-glow: rgba(58,255,212,0.10)">
       <div class="feature-num">03</div>
-      <div class="feature-icon f-icon-3">☀️</div>
       <h3 class="feature-title">Light & Dark Themes</h3>
       <p class="feature-desc">Every palette comes with a matched light and dark mode variation. WCAG contrast checked, developer-ready variables included.</p>
       <div class="mini-palette">
@@ -1012,7 +993,6 @@ footer {
 
     <div class="feature-card" style="--card-glow: rgba(255,60,140,0.10)">
       <div class="feature-num">04</div>
-      <div class="feature-icon f-icon-4">🔄</div>
       <h3 class="feature-title">Palette Regeneration</h3>
       <p class="feature-desc">Lock colors you love, regenerate the rest. Tweak until it's perfect — HueNova preserves your context and evolves the palette intelligently.</p>
       <div class="mini-palette">
@@ -1191,7 +1171,7 @@ footer {
 <!-- ===== FOOTER ===== -->
 <footer>
   <div class="footer-logo">Hue<span>Nova</span></div>
-  <div class="footer-copy">© 2026 HueNova. Built for creators. By Tasbiya Khan</div>
+  <div class="footer-copy">© 2025 HueNova. Built for creators. By Tasbiya Khan</div>
 </footer>
 
 <style>
@@ -1780,14 +1760,14 @@ footer {
       <div class="modal-loading-bar" id="modal-loading-bar"></div>
 
       <div class="modal-chips">
-        <button class="modal-chip" data-prompt="calm ocean morning">🌊 Ocean Morning</button>
-        <button class="modal-chip" data-prompt="bold startup energy">🚀 Bold Startup</button>
-        <button class="modal-chip" data-prompt="luxury skincare brand warm earthy">✨ Luxury Skincare</button>
-        <button class="modal-chip" data-prompt="neon cyberpunk city night">🌃 Cyberpunk City</button>
-        <button class="modal-chip" data-prompt="soft pastel spring garden">🌸 Spring Garden</button>
-        <button class="modal-chip" data-prompt="dark moody gothic editorial">🖤 Gothic Editorial</button>
-        <button class="modal-chip" data-prompt="fresh mint modern saas">💚 Fresh SaaS</button>
-        <button class="modal-chip" data-prompt="warm desert sunset minimal">🏜️ Desert Sunset</button>
+        <button class="modal-chip" data-prompt="calm ocean morning">Ocean Morning</button>
+        <button class="modal-chip" data-prompt="bold startup energy">Bold Startup</button>
+        <button class="modal-chip" data-prompt="luxury skincare brand warm earthy">Luxury Skincare</button>
+        <button class="modal-chip" data-prompt="neon cyberpunk city night">Cyberpunk City</button>
+        <button class="modal-chip" data-prompt="soft pastel spring garden">Spring Garden</button>
+        <button class="modal-chip" data-prompt="dark moody gothic editorial">Gothic Editorial</button>
+        <button class="modal-chip" data-prompt="fresh mint modern saas">Fresh SaaS</button>
+        <button class="modal-chip" data-prompt="warm desert sunset minimal">Desert Sunset</button>
       </div>
 
       <div class="modal-result-area" id="modal-result-area" style="display:none;">
@@ -2406,14 +2386,14 @@ function deriveThemes(colors, gradient) {
 
   return [
     {
-      label:'Light Theme', icon:'☀️', mode:'light',
+      label:'Light Theme', icon:'L', mode:'light',
       colors: lightColors,
-      palette: colors,        // all 5 raw palette swatches
+      palette: colors,
       gradient,
       roles:['bg','primary','secondary','accent','text'],
     },
     {
-      label:'Dark Theme', icon:'🌙', mode:'dark',
+      label:'Dark Theme', icon:'D', mode:'dark',
       colors: darkColors,
       palette: colors,
       gradient,
@@ -2466,8 +2446,7 @@ function renderThemeCards(themes) {
     card.innerHTML = `
       <!-- ── Label row ── -->
       <div class="theme-card-header" style="background:${bg};">
-        <span class="theme-card-label" style="color:${text}">${theme.label}</span>
-        <span class="theme-card-icon">${theme.icon}</span>
+        <span class="theme-card-label" style="color:${isLight ? '#111111' : '#f0ece4'}">${theme.label}</span>
       </div>
 
       <!-- ── Full UI Preview ── -->
@@ -2478,51 +2457,59 @@ function renderThemeCards(themes) {
           <div class="tc-browser-dot" style="background:#ff5f57"></div>
           <div class="tc-browser-dot" style="background:#febc2e"></div>
           <div class="tc-browser-dot" style="background:#28c840"></div>
-          <div style="flex:1; height:4px; border-radius:3px; background:${text}; opacity:0.12; margin-left:5px;"></div>
+          <div style="flex:1; height:4px; border-radius:3px; background:${isLight ? '#111' : '#fff'}; opacity:0.18; margin-left:5px;"></div>
         </div>
 
         <!-- Navbar — primary color -->
         <div style="background:${navBg}; display:flex; align-items:center; justify-content:space-between; padding:0.36rem 0.65rem;">
-          <div style="width:32px; height:5px; border-radius:3px; background:rgba(255,255,255,${isLight ? '0.9' : '0.65'});"></div>
+          <div style="width:32px; height:5px; border-radius:3px; background:#ffffff; opacity:0.92;"></div>
           <div style="display:flex; gap:5px; align-items:center;">
-            <div style="width:16px; height:4px; border-radius:2px; background:rgba(255,255,255,0.5);"></div>
-            <div style="width:16px; height:4px; border-radius:2px; background:rgba(255,255,255,0.5);"></div>
+            <div style="width:16px; height:4px; border-radius:2px; background:#ffffff; opacity:0.7;"></div>
+            <div style="width:16px; height:4px; border-radius:2px; background:#ffffff; opacity:0.7;"></div>
             <div style="width:22px; height:14px; border-radius:4px; background:${accent}; margin-left:4px;"></div>
           </div>
         </div>
 
         <!-- Hero banner — full palette gradient -->
         <div style="background:${grad}; height:62px; position:relative; overflow:hidden; display:flex; align-items:center; padding:0 0.7rem; gap:8px;">
-          <div style="position:absolute;inset:0;background:${isLight ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.25)'}"></div>
+          <div style="position:absolute;inset:0;background:${isLight ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.3)'}"></div>
           <div style="flex:1; position:relative; z-index:1;">
-            <div style="height:8px; border-radius:3px; background:#fff; width:60%; margin-bottom:5px; opacity:0.94;"></div>
-            <div style="height:4px; border-radius:2px; background:#fff; width:42%; opacity:0.6;"></div>
+            <div style="height:8px; border-radius:3px; background:#ffffff; width:60%; margin-bottom:5px;"></div>
+            <div style="height:4px; border-radius:2px; background:#ffffff; width:42%; opacity:0.75;"></div>
           </div>
           <div style="position:relative; z-index:1; display:flex; gap:5px;">
-            <div style="height:18px; width:42px; border-radius:5px; background:#fff; opacity:0.92;"></div>
-            <div style="height:18px; width:32px; border-radius:5px; border:1.5px solid rgba(255,255,255,0.65);"></div>
+            <div style="height:18px; width:42px; border-radius:5px; background:#ffffff;"></div>
+            <div style="height:18px; width:32px; border-radius:5px; border:1.5px solid rgba(255,255,255,0.8);"></div>
           </div>
         </div>
 
         <!-- Stat chips — palette[0], palette[2], palette[4] -->
         <div style="display:flex; gap:5px; padding:0.35rem 0.2rem 0;">
-          ${statBgs.map((sb, si) => `
+          ${statBgs.map((sb) => {
+            const sbHsl = hexToHsl(sb);
+            const statText = sbHsl.l > 50 ? '#111111' : '#ffffff';
+            const statMuted = sbHsl.l > 50 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.6)';
+            return `
             <div style="flex:1; border-radius:6px; background:${sb}; padding:5px 6px;">
-              <div style="height:8px; border-radius:3px; background:${text}; width:52%; opacity:0.82; margin-bottom:3px;"></div>
-              <div style="height:3px; border-radius:2px; background:${text}; width:75%; opacity:0.28;"></div>
-            </div>
-          `).join('')}
+              <div style="height:8px; border-radius:3px; background:${statText}; width:52%; margin-bottom:3px;"></div>
+              <div style="height:3px; border-radius:2px; background:${statText}; width:75%; opacity:0.45;"></div>
+            </div>`;
+          }).join('')}
         </div>
 
         <!-- Content cards — palette[1], palette[2], palette[3] -->
         <div style="display:flex; gap:5px; padding:0.3rem 0.2rem 0.3rem; margin-top:3px;">
-          ${cardBgs.map((cb, ci) => `
-            <div style="flex:1; border-radius:7px; background:${cb}; padding:6px 6px 5px; border:1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.07)'};">
-              <div style="height:5px; border-radius:3px; background:${text}; width:${62 + ci * 10}%; margin-bottom:4px; opacity:0.78;"></div>
-              <div style="height:3px; border-radius:2px; background:${text}; width:${82 - ci * 10}%; opacity:0.28; margin-bottom:4px;"></div>
-              <div style="height:9px; width:${22 + ci * 5}px; border-radius:4px; background:${cardAccents[ci]}; opacity:0.88;"></div>
-            </div>
-          `).join('')}
+          ${cardBgs.map((cb, ci) => {
+            const cbHsl = hexToHsl(cb);
+            const cardText = cbHsl.l > 50 ? '#111111' : '#ffffff';
+            const cardMuted = cbHsl.l > 50 ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.55)';
+            return `
+            <div style="flex:1; border-radius:7px; background:${cb}; padding:6px 6px 5px; border:1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.08)'};">
+              <div style="height:5px; border-radius:3px; background:${cardText}; width:${62 + ci * 10}%; margin-bottom:4px;"></div>
+              <div style="height:3px; border-radius:2px; background:${cardText}; width:${82 - ci * 10}%; opacity:0.45; margin-bottom:4px;"></div>
+              <div style="height:9px; width:${22 + ci * 5}px; border-radius:4px; background:${cardAccents[ci]};"></div>
+            </div>`;
+          }).join('')}
         </div>
 
       </div>
@@ -2530,7 +2517,7 @@ function renderThemeCards(themes) {
       <!-- 5-slot swatch strip (all 5 semantic roles) -->
       <div class="theme-card-swatches"></div>
       <div class="theme-card-roles"></div>
-      <button class="theme-card-copy" style="color:${isLight ? 'rgba(0,0,0,0.48)' : 'rgba(255,255,255,0.42)'};">Copy CSS</button>
+      <button class="theme-card-copy" style="color:${isLight ? '#222222' : '#e5e7eb'}; border-color:${isLight ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.25)'}; background:${isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)'}; opacity:1; font-weight:500;">Copy CSS</button>
     `;
 
     // Swatch row
@@ -2549,7 +2536,9 @@ function renderThemeCards(themes) {
     theme.roles.forEach(role => {
       const r = document.createElement('div');
       r.className = 'theme-card-role';
-      r.style.color = isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.27)';
+      r.style.color      = isLight ? '#222222' : '#e5e7eb';
+      r.style.opacity    = '1';
+      r.style.fontWeight = '500';
       r.textContent = role;
       rolesRow.appendChild(r);
     });
